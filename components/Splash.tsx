@@ -2,7 +2,9 @@
 
 import { Ruler, LineChart, Users, MapPin, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Logo } from '@/components/Logo'
 import { HeroCourt } from '@/components/HeroCourt'
+import { AuroraBackground } from '@/components/ui/aurora-background'
 import { SignInDialog } from '@/components/SignInDialog'
 
 const FEATURES = [
@@ -34,21 +36,19 @@ const RISE = 'splashRise'
 
 export function Splash({ onTry }: { onTry: () => void }) {
   return (
-    <main className="relative flex flex-1 flex-col overflow-hidden">
-      {/* ambient brand glow */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-1/3 left-1/2 h-[44rem] w-[44rem] -translate-x-1/2 rounded-full bg-primary/15 blur-[130px]"
-      />
-
-      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-14 px-6 py-16">
+    <AuroraBackground className="flex-1">
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-14 px-6 py-16">
         {/* hero — two-column on desktop */}
         <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-12">
           {/* copy */}
           <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+            <div className={RISE} style={{ animationDelay: '40ms' }}>
+              <Logo className="text-base" />
+            </div>
+
             <h1
-              className={`text-balance text-4xl font-semibold tracking-tight sm:text-5xl ${RISE}`}
-              style={{ animationDelay: '60ms' }}
+              className={`mt-6 text-balance text-4xl font-semibold tracking-tight sm:text-5xl ${RISE}`}
+              style={{ animationDelay: '120ms' }}
             >
               Find the right space for your{' '}
               <span className="bg-gradient-to-br from-primary to-[var(--chart-3)] bg-clip-text text-transparent">
@@ -110,6 +110,6 @@ export function Splash({ onTry }: { onTry: () => void }) {
           ))}
         </div>
       </div>
-    </main>
+    </AuroraBackground>
   )
 }

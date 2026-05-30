@@ -144,7 +144,7 @@ const FIT_PILL: Record<FitLabel, string> = {
 function FitPill({ sport, fit }: { sport: string; fit: FitScore }) {
   return (
     <span
-      className={`inline-flex flex-1 items-center justify-between gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ${FIT_PILL[fit.label]}`}
+      className={`fit-pill inline-flex flex-1 items-center justify-between gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ${FIT_PILL[fit.label]}`}
       title={`${fit.label} demand`}
     >
       <span>{sport}</span>
@@ -156,7 +156,7 @@ function FitPill({ sport, fit }: { sport: string; fit: FitScore }) {
 /** Compact 5-mile trade-area summary shown inside a map InfoWindow. */
 function DemandMini({ d }: { d: Demographics }) {
   return (
-    <div className="mt-1 space-y-1 border-t border-black/10 pt-1.5">
+    <div className="demand-mini mt-1 space-y-1 border-t border-black/10 pt-1.5">
       <div className="flex items-center justify-between text-[11px] text-neutral-500">
         <span>Demand · {d.radiusMiles}-mi radius</span>
         <span className="tabular-nums">{d.totalPopulation.toLocaleString()} people</span>
@@ -181,11 +181,11 @@ function DemandMini({ d }: { d: Demographics }) {
 
 function SportChips({ sports }: { sports: Sport[] }) {
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="sport-chips flex flex-wrap gap-1">
       {sports.map((s) => (
         <span
           key={s}
-          className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ring-1"
+          className="sport-chip inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ring-1"
           style={{
             color: s === 'Badminton' ? '#a5b4fc' : '#5eead4',
             borderColor: s === 'Badminton' ? '#6366f155' : '#14b8a655',
@@ -302,7 +302,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
 
   if (!apiKey) {
     return (
-      <div className="rounded-xl ring-1 ring-border bg-card p-8 text-center">
+      <div className="map-unavailable rounded-xl ring-1 ring-border bg-card p-8 text-center">
         <MapPin className="size-6 mx-auto text-muted-foreground" />
         <p className="mt-3 text-sm font-medium">Map unavailable</p>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -319,16 +319,16 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="properties-map space-y-3">
       {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1.5">
+      <div className="map-filter-bar flex flex-wrap items-center gap-2">
+        <div className="map-layer-toggles flex items-center gap-1.5">
           <Button
             type="button"
             size="sm"
             variant={showProperties ? 'default' : 'outline'}
             onClick={() => setShowProperties((v) => !v)}
-            className="gap-1.5"
+            className="map-layer-toggle gap-1.5"
           >
             <span className="size-2 rounded-full bg-emerald-400" />
             My sites ({allProperties.length})
@@ -338,7 +338,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
             size="sm"
             variant={showCompetitors ? 'default' : 'outline'}
             onClick={() => setShowCompetitors((v) => !v)}
-            className="gap-1.5"
+            className="map-layer-toggle gap-1.5"
           >
             <span className="size-2 rounded-full bg-white ring-1 ring-black/30" />
             Competitors ({allCompetitors.length})
@@ -346,7 +346,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
         </div>
 
         <Select value={sport} onValueChange={(v) => setSport(v as 'all' | Sport | 'both')}>
-          <SelectTrigger size="sm" className="w-[170px]">
+          <SelectTrigger size="sm" className="map-filter-sport w-[170px]">
             <span className="text-muted-foreground">Sport:</span>
             <SelectValue>
               {(v: string) => (v === 'all' ? 'All' : v === 'both' ? 'Badminton + Pickleball' : v)}
@@ -361,7 +361,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
         </Select>
 
         <Select value={region} onValueChange={(v) => setRegion(v as 'all' | Region)}>
-          <SelectTrigger size="sm" className="w-[180px]">
+          <SelectTrigger size="sm" className="map-filter-location w-[180px]">
             <span className="text-muted-foreground">Location:</span>
             <SelectValue>{(v: string) => (v === 'all' ? 'All' : v)}</SelectValue>
           </SelectTrigger>
@@ -376,7 +376,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
         </Select>
 
         <Select value={String(minCourts)} onValueChange={(v) => setMinCourts(Number(v))}>
-          <SelectTrigger size="sm" className="w-[150px]">
+          <SelectTrigger size="sm" className="map-filter-courts w-[150px]">
             <span className="text-muted-foreground">Courts:</span>
             <SelectValue>{(v: string) => (v === '0' ? 'All' : `${v}+`)}</SelectValue>
           </SelectTrigger>
@@ -389,31 +389,31 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
           </SelectContent>
         </Select>
 
-        <div className="relative">
+        <div className="map-search relative">
           <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name or address"
-            className="h-8 w-[220px] pl-8 text-sm"
+            className="map-search-input h-8 w-[220px] pl-8 text-sm"
           />
         </div>
       </div>
 
       {minCourts > 0 && (
-        <p className="text-xs text-muted-foreground">
+        <p className="map-note text-xs text-muted-foreground">
           Court filter applies to your sites only — competitor court counts aren&apos;t published.
         </p>
       )}
       {unmappedCount > 0 && (
-        <p className="text-xs text-muted-foreground">
+        <p className="map-note text-xs text-muted-foreground">
           {unmappedCount} {unmappedCount === 1 ? 'site' : 'sites'} couldn&apos;t be placed on the map
           (address missing or not found).
         </p>
       )}
 
-      <div className="flex gap-3">
-        <div className="relative h-[72vh] flex-1 overflow-hidden rounded-xl ring-1 ring-border">
+      <div className="map-layout flex gap-3">
+        <div className="map-canvas relative h-[72vh] flex-1 overflow-hidden rounded-xl ring-1 ring-border">
           <APIProvider apiKey={apiKey}>
             <Map
               mapId={mapId}
@@ -466,7 +466,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
                   onCloseClick={() => setSelected(null)}
                   pixelOffset={[0, -36]}
                 >
-                  <div className="min-w-44 max-w-64 space-y-1.5 p-0.5 text-neutral-900">
+                  <div className="site-infowindow min-w-44 max-w-64 space-y-1.5 p-0.5 text-neutral-900">
                     {selectedProperty.image && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -513,7 +513,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
                   onCloseClick={() => setSelected(null)}
                   pixelOffset={[0, -28]}
                 >
-                  <div className="min-w-44 max-w-64 space-y-1.5 p-0.5 text-neutral-900">
+                  <div className="facility-infowindow min-w-44 max-w-64 space-y-1.5 p-0.5 text-neutral-900">
                     <p className="font-medium leading-snug text-black">
                       {selectedCompetitor.facility.name}
                     </p>
@@ -542,7 +542,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
           </APIProvider>
 
           {/* Legend */}
-          <div className="absolute bottom-2 left-2 rounded-lg bg-background/80 backdrop-blur ring-1 ring-border px-2.5 py-2 text-[11px] space-y-1">
+          <div className="map-legend absolute bottom-2 left-2 rounded-lg bg-background/80 backdrop-blur ring-1 ring-border px-2.5 py-2 text-[11px] space-y-1">
             <div className="flex items-center gap-1.5">
               <span className="inline-block size-2.5 rounded-full bg-emerald-400" />
               <span className="text-muted-foreground">Your candidate sites (by rating)</span>
@@ -555,14 +555,14 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
         </div>
 
         {/* Reference list */}
-        <aside className="hidden lg:flex w-72 shrink-0 flex-col h-[72vh] rounded-xl ring-1 ring-border bg-card">
-          <div className="px-3 py-2 border-b border-border">
+        <aside className="reference-list hidden lg:flex w-72 shrink-0 flex-col h-[72vh] rounded-xl ring-1 ring-border bg-card">
+          <div className="reference-list-header px-3 py-2 border-b border-border">
             <p className="text-sm font-medium">Reference facilities</p>
             <p className="text-xs text-muted-foreground">
               {competitors.length} of {allCompetitors.length} shown
             </p>
           </div>
-          <div className="flex-1 overflow-y-auto divide-y divide-border">
+          <div className="reference-list-items flex-1 overflow-y-auto divide-y divide-border">
             {competitors.length === 0 ? (
               <p className="p-3 text-xs text-muted-foreground">No facilities match the filters.</p>
             ) : (
@@ -571,7 +571,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
                   key={c.id}
                   type="button"
                   onClick={() => focusFacility(c)}
-                  className={`block w-full text-left px-3 py-2 hover:bg-foreground/5 transition ${
+                  className={`reference-item block w-full text-left px-3 py-2 hover:bg-foreground/5 transition ${
                     selected?.kind === 'competitor' && selected.id === c.id ? 'bg-foreground/5' : ''
                   }`}
                 >

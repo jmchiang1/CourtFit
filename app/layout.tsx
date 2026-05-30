@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { Header } from "@/components/Header";
 import { WindowName } from "@/components/WindowName";
 
 const inter = Inter({
@@ -33,7 +32,6 @@ export default function RootLayout({
     >
       <body className="min-h-screen bg-background text-foreground antialiased flex flex-col">
         <WindowName name="kotofit-app" />
-        <Header />
         {children}
       </body>
     </html>
