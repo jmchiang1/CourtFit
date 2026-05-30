@@ -191,3 +191,40 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* --- Splash animations ---
+   Each class owns its animation, so timing / easing / distance are easy to tweak
+   right here. Elements set their stagger via an inline `animation-delay`. */
+@keyframes splashRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes heroCourtDrop {
+  from { opacity: 0; transform: translateY(-56px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes heroFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* Copy + feature cards rise and fade in. */
+.splashRise {
+  animation: splashRise 0.7s ease-out both;
+}
+/* Hero court drops in from above and eases into place while fading in. */
+.heroCourtDrop {
+  animation: heroCourtDrop 0.9s ease-out both;
+}
+/* Floating product chips bob gently and forever. */
+.heroFloat {
+  animation: heroFloat 5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splashRise,
+  .heroCourtDrop,
+  .heroFloat {
+    animation: none;
+  }
+}
