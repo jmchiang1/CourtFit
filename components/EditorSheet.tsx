@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { ListingInput } from '@/components/ListingInput'
+import { PhotoStrip } from '@/components/PhotoStrip'
 import { PropertyForm } from '@/components/PropertyForm'
 import { AssumptionsPanel } from '@/components/AssumptionsPanel'
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
@@ -103,6 +104,9 @@ export function EditorSheet({ initial, onClose, onSaved }: Props) {
 
           <div className="flex-1 px-5 py-4 space-y-4">
             <ListingInput onExtracted={(l) => setListing(l)} />
+            {listing.imageUrls?.length > 0 && (
+              <PhotoStrip images={listing.imageUrls} sourceUrl={listing.sourceUrl ?? null} />
+            )}
             <PropertyForm
               value={listing}
               onChange={setListing}

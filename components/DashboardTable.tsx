@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Table,
   TableBody,
@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
 import { fmtMoney } from '@/lib/format'
-import { ArrowUp, ArrowDown, ArrowUpDown, MoreVertical, Pencil, Trash2, Eye, MapPin } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowUpDown, MoreVertical, Pencil, Trash2, Eye, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
 import { calculateAnalysis } from '@/lib/calculator'
 import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
@@ -54,12 +54,14 @@ interface Props {
 
 export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
   const [search, setSearch] = useState('')
-  const [ratingFilter, setRatingFilter] = useState<'all' | Rating>('all')
-  const [regionFilter, setRegionFilter] = useState<'all' | Region>('all')
+  const [ratingFilter, setRatingFilter] = useState<'All' | Rating>('All')
+  const [regionFilter, setRegionFilter] = useState<'All' | Region>('All')
   // Default: rating ascending = Strong Candidate first → Do Not Pursue last.
   // RATING_ORDER assigns lower numbers to stronger ratings.
   const [sortKey, setSortKey] = useState<SortKey>('rating')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [pageSize, setPageSize] = useState(10)
+  const [page, setPage] = useState(1)
 
   // Recompute analysis fresh from listing_json + assumptions_json so the table
   // always reflects the current calculator logic, not the stale snapshot
@@ -92,14 +94,14 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
 
   // If the user has the active tab on a region but no rows match anymore
   // (e.g., they deleted the last property in that borough), drop back to All.
-  if (regionFilter !== 'all' && !visibleRegions.includes(regionFilter)) {
-    setRegionFilter('all')
+  if (regionFilter !== 'All' && !visibleRegions.includes(regionFilter)) {
+    setRegionFilter('All')
   }
 
   const filteredSorted = useMemo(() => {
     const needle = search.trim().toLowerCase()
     let out = enrichedRows
-    if (regionFilter !== 'all') {
+    if (regionFilter !== 'All') {
       out = out.filter((e) => e.region === regionFilter)
     }
     if (needle) {
@@ -108,7 +110,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
         return hay.includes(needle)
       })
     }
-    if (ratingFilter !== 'all') {
+    if (ratingFilter !== 'All') {
       out = out.filter((e) => e.rating === ratingFilter)
     }
     const sign = sortDir === 'asc' ? 1 : -1
@@ -138,6 +140,18 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
     return out
   }, [enrichedRows, search, ratingFilter, regionFilter, sortKey, sortDir])
 
+  // Jump back to the first page whenever the result set changes shape so we're
+  // never stranded on a page that no longer exists.
+  useEffect(() => {
+    setPage(1)
+  }, [search, ratingFilter, regionFilter, pageSize])
+
+  const total = filteredSorted.length
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const currentPage = Math.min(page, pageCount)
+  const pageStart = (currentPage - 1) * pageSize
+  const paged = filteredSorted.slice(pageStart, pageStart + pageSize)
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -154,10 +168,10 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
       {visibleRegions.length > 0 && (
         <Tabs
           value={regionFilter}
-          onValueChange={(v) => setRegionFilter(v as 'all' | Region)}
+          onValueChange={(v) => setRegionFilter(v as 'All' | Region)}
         >
           <TabsList variant="line" className="flex-wrap h-auto">
-            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="All">All</TabsTrigger>
             {visibleRegions.map((r) => (
               <TabsTrigger key={r} value={r}>
                 {r}
@@ -177,13 +191,13 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
         />
         <Select
           value={ratingFilter}
-          onValueChange={(v) => setRatingFilter(v as 'all' | Rating)}
+          onValueChange={(v) => setRatingFilter(v as 'All' | Rating)}
         >
           <SelectTrigger className="w-56">
             <SelectValue placeholder="Rating: All Properties" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Rating: All</SelectItem>
+            <SelectItem value="All">Rating: All</SelectItem>
             <SelectItem value="Strong Candidate">Strong Candidate</SelectItem>
             <SelectItem value="Worth Investigating">Worth Investigating</SelectItem>
             <SelectItem value="Risky">Risky</SelectItem>
@@ -219,7 +233,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
                 </TableCell>
               </TableRow>
             )}
-            {filteredSorted.map(({ row, rating, noi, totalCourts, paybackYears }) => (
+            {paged.map(({ row, rating, noi, totalCourts, paybackYears }) => (
               <TableRow
                 key={row.id}
                 className="cursor-pointer hover:bg-white/[0.03]"
@@ -290,6 +304,54 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="tabular-nums">
+              {pageStart + 1}–{Math.min(pageStart + pageSize, total)} of {total}
+            </span>
+            <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+              <SelectTrigger className="h-8 w-[110px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[10, 25, 50, 100].map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n} / page
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              Page {currentPage} of {pageCount}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="size-8 p-0"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="size-8 p-0"
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              disabled={currentPage >= pageCount}
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

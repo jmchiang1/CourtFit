@@ -17,8 +17,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kotofit Facility Analyzer",
-  description: "Evaluate commercial properties for badminton/pickleball facility viability",
+  title: "CourtFit — Racket Sport Facility Analyzer",
+  description: "Evaluate commercial properties for badminton & pickleball facility viability",
 };
 
 export default function RootLayout({
