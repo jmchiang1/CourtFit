@@ -74,6 +74,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
         // Merge with defaults so older saved properties (missing new fields)
         // compute correctly.
         assumptions: { ...DEFAULT_ASSUMPTIONS, ...r.assumptions_json },
+        condition: r.condition_json,
       })
       return {
         row: r,

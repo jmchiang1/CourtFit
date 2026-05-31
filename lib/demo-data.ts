@@ -57,6 +57,8 @@ function demo(
     geocoded_at: '2026-05-20T15:00:00.000Z',
     demographics_json: null,
     demographics_at: null,
+    condition_json: null,
+    condition_at: null,
   }
 }
 

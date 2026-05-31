@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   APIProvider,
   Map,
@@ -15,6 +15,7 @@ import { calculateAnalysis } from '@/lib/calculator'
 import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
 import { fmtMoney, fmtPct } from '@/lib/format'
 import { FACILITY_DEMOGRAPHICS } from '@/lib/facility-demographics'
+import { DRIVE_MINUTES } from '@/lib/catchment'
 import type { Demographics, FitScore, FitLabel } from '@/types/demographics'
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
 import { Button } from '@/components/ui/button'
@@ -26,7 +27,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { MapPin, Eye, ExternalLink, Search, Plus, Trash2 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { getIsochrone } from '@/app/actions/isochrone'
+import { MapPin, Eye, ExternalLink, Search, Plus, Trash2, Clock, Circle, ChevronDown } from 'lucide-react'
 import type { Rating } from '@/types/analysis'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
 import {
@@ -53,6 +60,21 @@ const RATING_COLOR: Record<Rating, { bg: string; border: string; glyph: string }
 
 const NYC_CENTER = { lat: 40.73, lng: -73.85 }
 
+// Default trade-area radius drawn around the selected marker — mirrors the
+// 5-mile radius the Census demographics are aggregated over (lib/census-core.ts).
+// The slider lets the user resize the *visual* ring; demand scores stay at 5 mi.
+const DEFAULT_RADIUS_MILES = 5
+const MILE_IN_METERS = 1609.344
+
+// Clamp manual drive-time entry to Mapbox's supported 1–60 minute range.
+const clampMinutes = (n: number) => Math.max(1, Math.min(60, Math.round(Number.isFinite(n) ? n : 15)))
+
+// Shared classes for the segmented catchment-mode buttons.
+const segBtn = (active: boolean) =>
+  `flex h-full items-center gap-1.5 px-2.5 text-sm transition ${
+    active ? 'bg-foreground/10 text-foreground' : 'text-muted-foreground hover:text-foreground'
+  }`
+
 // Competitor facilities share one high-contrast marker so they read as a single
 // "reference" layer, clearly distinct from the rating-colored candidate-site
 // pins. White-on-dark is the most legible against the dark basemap; the sport
@@ -71,23 +93,22 @@ function pinIcon(bg: string, border: string): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
-// Circle marker (competitor facilities) — uniform white with a dark ring.
-function competitorIcon(): string {
+// Circle marker (competitor facilities). The fill color is user-configurable
+// (defaults to white); the dark ring keeps it legible on the dark basemap.
+function competitorIcon(color: string = COMPETITOR_COLOR): string {
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">` +
-    `<circle cx="13" cy="13" r="9" fill="${COMPETITOR_COLOR}" stroke="${COMPETITOR_RING}" stroke-width="3"/></svg>`
+    `<circle cx="13" cy="13" r="9" fill="${color}" stroke="${COMPETITOR_RING}" stroke-width="3"/></svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
-// Facilities the user added get a cyan ring so they stand out from the curated
-// white reference markers.
-const CUSTOM_RING = '#22d3ee'
-function customFacilityIcon(): string {
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">` +
-    `<circle cx="13" cy="13" r="9" fill="${COMPETITOR_COLOR}" stroke="${CUSTOM_RING}" stroke-width="3"/></svg>`
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`
-}
+// Per-device global color for the reference-facility dots (built-in and the
+// ones the user adds share it), with a small palette of presets for the picker.
+const REFERENCE_COLOR_KEY = 'cf-reference-color'
+const REFERENCE_PRESETS = [
+  '#ffffff', '#94a3b8', '#f43f5e', '#f59e0b',
+  '#10b981', '#3b82f6', '#a855f7', '#ec4899',
+]
 
 interface PropertyPoint {
   kind: 'property'
@@ -156,6 +177,72 @@ function PanTo({ target }: { target: { lat: number; lng: number } | null }) {
   return null
 }
 
+/** Draws a trade-area ring around the currently selected marker. */
+function RadiusRing({
+  center,
+  radiusMiles,
+}: {
+  center: { lat: number; lng: number } | null
+  radiusMiles: number
+}) {
+  const map = useMap()
+  const circleRef = useRef<google.maps.Circle | null>(null)
+  useEffect(() => {
+    if (!map || !center) {
+      circleRef.current?.setMap(null)
+      circleRef.current = null
+      return
+    }
+    if (!circleRef.current) {
+      circleRef.current = new google.maps.Circle({
+        map,
+        strokeColor: '#f43f5e',
+        strokeOpacity: 0.9,
+        strokeWeight: 2,
+        fillColor: '#f43f5e',
+        fillOpacity: 0.07,
+        clickable: false,
+      })
+    }
+    // Mutating the existing circle (vs. recreating) keeps the ring from
+    // flickering while the user drags the radius slider.
+    circleRef.current.setCenter(center)
+    circleRef.current.setRadius(radiusMiles * MILE_IN_METERS)
+  }, [map, center?.lat, center?.lng, radiusMiles])
+  // Tear the circle down when the map unmounts.
+  useEffect(() => () => circleRef.current?.setMap(null), [])
+  return null
+}
+
+/**
+ * Draws a single drive-time isochrone polygon (the live overlay the user tunes
+ * via the Drive-time menu). Ring is [lng,lat] pairs; we convert to {lat,lng}.
+ */
+function PolygonRing({ ring }: { ring: number[][] | null }) {
+  const map = useMap()
+  const polyRef = useRef<google.maps.Polygon | null>(null)
+  useEffect(() => {
+    polyRef.current?.setMap(null)
+    polyRef.current = null
+    if (!map || !ring) return
+    polyRef.current = new google.maps.Polygon({
+      map,
+      paths: ring.map(([lng, lat]) => ({ lat, lng })),
+      strokeColor: '#f43f5e',
+      strokeOpacity: 0.9,
+      strokeWeight: 2,
+      fillColor: '#f43f5e',
+      fillOpacity: 0.07,
+      clickable: false,
+    })
+    return () => {
+      polyRef.current?.setMap(null)
+      polyRef.current = null
+    }
+  }, [map, ring])
+  return null
+}
+
 // Fit-label colors tuned for the white InfoWindow (dark text on light chips).
 const FIT_PILL: Record<FitLabel, string> = {
   Strong: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
@@ -180,7 +267,11 @@ function DemandMini({ d }: { d: Demographics }) {
   return (
     <div className="demand-mini mt-1 space-y-1 border-t border-black/10 pt-1.5">
       <div className="flex items-center justify-between text-[11px] text-neutral-500">
-        <span>Demand · {d.radiusMiles}-mi radius</span>
+        <span>
+          {d.mode === 'drive'
+            ? `Demand · ${DRIVE_MINUTES.badminton}/${DRIVE_MINUTES.pickleball}-min drive`
+            : `Demand · ${d.radiusMiles}-mi radius`}
+        </span>
         <span className="tabular-nums">{d.totalPopulation.toLocaleString()} people</span>
       </div>
       <div className="flex gap-1.5">
@@ -231,10 +322,37 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
 
   const [selected, setSelected] = useState<Selected>(null)
   const [focus, setFocus] = useState<{ lat: number; lng: number } | null>(null)
+  const [radiusMiles, setRadiusMiles] = useState(DEFAULT_RADIUS_MILES)
+  const [driveMinutes, setDriveMinutes] = useState(15)
+  const [mapMode, setMapMode] = useState<'radius' | 'drive'>('drive')
+  // Live drive-time overlay: ring fetched for the selected marker at driveMinutes.
+  const [liveRing, setLiveRing] = useState<number[][] | null>(null)
+  const [isoLoading, setIsoLoading] = useState(false)
+  // Keyed cache of fetched rings ("markerId:minutes"). Plain object because the
+  // Map identifier is shadowed by the Google Maps <Map> component import above.
+  const isoCache = useRef<Record<string, number[][] | null>>({})
 
   // Filters.
   const [showProperties, setShowProperties] = useState(true)
   const [showCompetitors, setShowCompetitors] = useState(true)
+  // Global, per-device color for the built-in reference-facility dots.
+  const [referenceColor, setReferenceColor] = useState<string>(COMPETITOR_COLOR)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(REFERENCE_COLOR_KEY)
+      if (saved) setReferenceColor(saved)
+    } catch {
+      /* localStorage unavailable */
+    }
+  }, [])
+  const updateReferenceColor = (c: string) => {
+    setReferenceColor(c)
+    try {
+      localStorage.setItem(REFERENCE_COLOR_KEY, c)
+    } catch {
+      /* ignore */
+    }
+  }
   const [sport, setSport] = useState<'all' | Sport | 'both'>('all')
   const [region, setRegion] = useState<'all' | Region>('all')
   const [minCourts, setMinCourts] = useState(0)
@@ -271,6 +389,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
         const result = calculateAnalysis({
           listing: r.listing_json,
           assumptions: { ...DEFAULT_ASSUMPTIONS, ...r.assumptions_json },
+          condition: r.condition_json,
         })
         const title = r.label || r.address || 'Property'
         const subtitle = r.address && r.address !== title ? r.address : null
@@ -362,6 +481,42 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     selected?.kind === 'property' ? properties.find((p) => p.id === selected.id) ?? null : null
   const selectedCompetitor =
     selected?.kind === 'competitor' ? competitors.find((c) => c.id === selected.id) ?? null : null
+  // The ring/isochrone follows whichever marker is currently selected.
+  const selectedCenter = selectedProperty?.position ?? selectedCompetitor?.position ?? null
+  const selectedId = selected?.id ?? null
+
+  // In drive mode, fetch (and cache) a driving isochrone for the selected marker
+  // at the chosen minutes. The catchment-based demand scores stay fixed; this is
+  // a visual exploration overlay, the drive-time analogue of the radius slider.
+  useEffect(() => {
+    if (mapMode !== 'drive' || !selectedCenter || !selectedId) {
+      setLiveRing(null)
+      setIsoLoading(false)
+      return
+    }
+    const key = `${selectedId}:${driveMinutes}`
+    if (key in isoCache.current) {
+      setLiveRing(isoCache.current[key])
+      setIsoLoading(false)
+      return
+    }
+    let active = true
+    setIsoLoading(true)
+    getIsochrone(selectedCenter.lat, selectedCenter.lng, driveMinutes).then((ring) => {
+      isoCache.current[key] = ring
+      if (!active) return
+      setLiveRing(ring)
+      setIsoLoading(false)
+    })
+    return () => {
+      active = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapMode, selectedId, selectedCenter?.lat, selectedCenter?.lng, driveMinutes])
+
+  // True once a drive-time lookup finished but returned nothing (Mapbox off / failed).
+  const driveUnavailable =
+    mapMode === 'drive' && selectedCenter != null && !isoLoading && liveRing == null
 
   if (!apiKey) {
     return (
@@ -383,97 +538,251 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
 
   return (
     <div className="properties-map space-y-3">
-      {/* Filter bar */}
-      <div className="map-filter-bar flex flex-wrap items-center gap-2">
-        <div className="map-layer-toggles flex items-center gap-1.5">
-          <Button
-            type="button"
-            size="sm"
-            variant={showProperties ? 'default' : 'outline'}
-            onClick={() => setShowProperties((v) => !v)}
-            className="map-layer-toggle gap-1.5"
-          >
-            <span className="size-2 rounded-full bg-emerald-400" />
-            My sites ({allProperties.length})
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={showCompetitors ? 'default' : 'outline'}
-            onClick={() => setShowCompetitors((v) => !v)}
-            className="map-layer-toggle gap-1.5"
-          >
-            <span className="size-2 rounded-full bg-white ring-1 ring-black/30" />
-            Competitors ({allCompetitors.length})
-          </Button>
+      {/* Filter bar — two grouped rows: layers + search/actions on top,
+          filters + catchment overlay below. */}
+      <div className="map-filter-bar space-y-2">
+        {/* Row 1 — layers (left) · search + add (right) */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="map-layer-toggles flex items-center gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant={showProperties ? 'default' : 'outline'}
+              onClick={() => setShowProperties((v) => !v)}
+              className="map-layer-toggle gap-1.5"
+            >
+              <span className="size-2 rounded-full bg-emerald-400" />
+              My sites ({allProperties.length})
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={showCompetitors ? 'default' : 'outline'}
+              onClick={() => setShowCompetitors((v) => !v)}
+              className="map-layer-toggle gap-1.5"
+            >
+              <span
+                className="size-2 rounded-full ring-1 ring-black/30"
+                style={{ background: referenceColor }}
+              />
+              Competitors ({allCompetitors.length})
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="reference-color-picker gap-1.5 px-2"
+                    aria-label="Reference facility dot color"
+                  >
+                    <span
+                      className="size-3 rounded-full ring-1 ring-black/40"
+                      style={{ background: referenceColor }}
+                    />
+                    <ChevronDown className="size-3.5" />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="start" className="w-auto p-2">
+                <div className="grid grid-cols-4 gap-1.5">
+                  {REFERENCE_PRESETS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => updateReferenceColor(c)}
+                      aria-label={`Use ${c}`}
+                      className={`size-6 rounded-full ring-1 transition ${
+                        referenceColor.toLowerCase() === c.toLowerCase()
+                          ? 'ring-2 ring-primary'
+                          : 'ring-black/30 hover:ring-foreground/50'
+                      }`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
+                  <label htmlFor="ref-color-custom" className="text-xs text-muted-foreground">
+                    Custom
+                  </label>
+                  <input
+                    id="ref-color-custom"
+                    type="color"
+                    value={referenceColor}
+                    onChange={(e) => updateReferenceColor(e.target.value)}
+                    className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => updateReferenceColor(COMPETITOR_COLOR)}
+                    className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="map-search relative ml-auto">
+            <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name or address"
+              className="map-search-input h-8 w-[220px] pl-8 text-sm"
+            />
+          </div>
         </div>
 
-        <Select value={sport} onValueChange={(v) => setSport(v as 'all' | Sport | 'both')}>
-          <SelectTrigger size="sm" className="map-filter-sport w-[170px]">
-            <span className="text-muted-foreground">Sport:</span>
-            <SelectValue>
-              {(v: string) => (v === 'all' ? 'All' : v === 'both' ? 'Badminton + Pickleball' : v)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="Badminton">Badminton</SelectItem>
-            <SelectItem value="Pickleball">Pickleball</SelectItem>
-            <SelectItem value="both">Badminton + Pickleball</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Row 2 — filters (left) · catchment overlay (right) */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          <div className="map-filters flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Filter
+            </span>
+            <Select value={sport} onValueChange={(v) => setSport(v as 'all' | Sport | 'both')}>
+            <SelectTrigger size="sm" className="map-filter-sport w-[170px]">
+              <span className="text-muted-foreground">Sport:</span>
+              <SelectValue>
+                {(v: string) => (v === 'all' ? 'All' : v === 'both' ? 'Badminton + Pickleball' : v)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="Badminton">Badminton</SelectItem>
+              <SelectItem value="Pickleball">Pickleball</SelectItem>
+              <SelectItem value="both">Badminton + Pickleball</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Select value={region} onValueChange={(v) => setRegion(v as 'all' | Region)}>
-          <SelectTrigger size="sm" className="map-filter-location w-[180px]">
-            <span className="text-muted-foreground">Location:</span>
-            <SelectValue>{(v: string) => (v === 'all' ? 'All' : v)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            {presentRegions.map((r) => (
-              <SelectItem key={r} value={r}>
-                {r}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={region} onValueChange={(v) => setRegion(v as 'all' | Region)}>
+            <SelectTrigger size="sm" className="map-filter-location w-[180px]">
+              <span className="text-muted-foreground">Location:</span>
+              <SelectValue>{(v: string) => (v === 'all' ? 'All' : v)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {presentRegions.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={String(minCourts)} onValueChange={(v) => setMinCourts(Number(v))}>
-          <SelectTrigger size="sm" className="map-filter-courts w-[150px]">
-            <span className="text-muted-foreground">Courts:</span>
-            <SelectValue>{(v: string) => (v === '0' ? 'All' : `${v}+`)}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">All</SelectItem>
-            <SelectItem value="2">2+</SelectItem>
-            <SelectItem value="4">4+</SelectItem>
-            <SelectItem value="6">6+</SelectItem>
-            <SelectItem value="8">8+</SelectItem>
-          </SelectContent>
-        </Select>
+          <Select value={String(minCourts)} onValueChange={(v) => setMinCourts(Number(v))}>
+            <SelectTrigger size="sm" className="map-filter-courts w-[150px]">
+              <span className="text-muted-foreground">Courts:</span>
+              <SelectValue>{(v: string) => (v === '0' ? 'All' : `${v}+`)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">All</SelectItem>
+              <SelectItem value="2">2+</SelectItem>
+              <SelectItem value="4">4+</SelectItem>
+              <SelectItem value="6">6+</SelectItem>
+              <SelectItem value="8">8+</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <div className="map-search relative">
-          <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or address"
-            className="map-search-input h-8 w-[220px] pl-8 text-sm"
-          />
+          </div>
+
+          <div className="map-catchment flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+              Catchment
+            </span>
+            <div className="map-catchment-mode flex items-center rounded-md border border-input h-8 overflow-hidden">
+            {/* Drive time → minutes menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<button type="button" />}
+                onClick={() => setMapMode('drive')}
+                className={segBtn(mapMode === 'drive')}
+              >
+                <Clock className="size-3.5" />
+                Drive time
+                {mapMode === 'drive' && (
+                  <span className="tabular-nums text-muted-foreground">· {driveMinutes}m</span>
+                )}
+                <ChevronDown className="size-3 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-60 space-y-2.5 p-3">
+                <div className="text-xs font-medium">Drive-time area</div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={driveMinutes}
+                    onChange={(e) => setDriveMinutes(clampMinutes(Number(e.target.value)))}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    className="h-8 w-20"
+                    aria-label="Drive time in minutes"
+                  />
+                  <span className="text-sm text-muted-foreground">minutes</span>
+                </div>
+                <div className="flex gap-1">
+                  {[10, 15, 20, 30].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setDriveMinutes(m)}
+                      className={`flex-1 rounded border px-1.5 py-1 text-xs transition ${
+                        driveMinutes === m
+                          ? 'border-rose-500/60 bg-rose-500/10 text-foreground'
+                          : 'border-input text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {m}m
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Driving distance reachable around the selected marker. Demand scores still use the
+                  fixed per-sport catchments.
+                </p>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Radius → miles slider menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<button type="button" />}
+                onClick={() => setMapMode('radius')}
+                className={`${segBtn(mapMode === 'radius')} border-l border-input`}
+              >
+                <Circle className="size-3.5" />
+                Radius
+                {mapMode === 'radius' && (
+                  <span className="tabular-nums text-muted-foreground">· {radiusMiles}mi</span>
+                )}
+                <ChevronDown className="size-3 opacity-60" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-60 space-y-2.5 p-3">
+                <div className="flex items-center justify-between text-xs font-medium">
+                  <span>Radius</span>
+                  <span className="tabular-nums text-muted-foreground">{radiusMiles} mi</span>
+                </div>
+                <input
+                  type="range"
+                  min={1}
+                  max={15}
+                  step={1}
+                  value={radiusMiles}
+                  onChange={(e) => setRadiusMiles(Number(e.target.value))}
+                  aria-label="Trade-area ring radius in miles"
+                  className="map-radius-slider w-full accent-rose-500 cursor-pointer"
+                />
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  Straight-line distance around the selected marker.
+                </p>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            </div>
+          </div>
         </div>
-
-        {!demo && (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="map-add-facility ml-auto gap-1.5"
-            onClick={() => setAddOpen(true)}
-          >
-            <Plus className="size-3.5" />
-            Add facility
-          </Button>
-        )}
       </div>
 
       {minCourts > 0 && (
@@ -485,6 +794,12 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
         <p className="map-note text-xs text-muted-foreground">
           {unmappedCount} {unmappedCount === 1 ? 'site' : 'sites'} couldn&apos;t be placed on the map
           (address missing or not found).
+        </p>
+      )}
+      {driveUnavailable && (
+        <p className="map-note text-xs text-muted-foreground">
+          Couldn&apos;t load the {driveMinutes}-min drive-time area (Mapbox not configured or no
+          roads reachable). Try the radius view.
         </p>
       )}
 
@@ -503,6 +818,11 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
             >
               <FitBounds positions={positions} />
               <PanTo target={focus} />
+              {mapMode === 'drive' ? (
+                <PolygonRing ring={liveRing} />
+              ) : (
+                <RadiusRing center={selectedCenter} radiusMiles={radiusMiles} />
+              )}
 
               {properties.map((p) => {
                 const c = RATING_COLOR[p.rating] ?? RATING_COLOR.Incomplete
@@ -531,7 +851,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                   key={c.id}
                   position={c.position}
                   title={c.facility.name}
-                  icon={c.custom ? customFacilityIcon() : competitorIcon()}
+                  icon={competitorIcon(referenceColor)}
                   onClick={() => setSelected({ kind: 'competitor', id: c.id })}
                 />
               ))}
@@ -636,25 +956,44 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
               <span className="text-muted-foreground">Your candidate sites (by rating)</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="inline-block size-2.5 rounded-full bg-white ring-1 ring-black/40" />
+              <span
+                className="inline-block size-2.5 rounded-full ring-1 ring-black/40"
+                style={{ background: referenceColor }}
+              />
               <span className="text-muted-foreground">Reference facilities</span>
             </div>
-            {custom.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="inline-block size-2.5 rounded-full bg-cyan-400 ring-1 ring-cyan-700/40" />
-                <span className="text-muted-foreground">Added by you</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block size-2.5 rounded-full border border-rose-500 bg-rose-500/10" />
+              <span className="text-muted-foreground">
+                {mapMode === 'drive'
+                  ? `${driveMinutes}-min drive area (selected)`
+                  : `${radiusMiles}-mi radius (selected)`}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Reference list */}
         <aside className="reference-list hidden lg:flex w-72 shrink-0 flex-col h-[72vh] rounded-xl ring-1 ring-border bg-card">
-          <div className="reference-list-header px-3 py-2 border-b border-border">
-            <p className="text-sm font-medium">Reference facilities</p>
-            <p className="text-xs text-muted-foreground">
-              {competitors.length} of {allCompetitors.length} shown
-            </p>
+          <div className="reference-list-header flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Reference facilities</p>
+              <p className="text-xs text-muted-foreground">
+                {competitors.length} of {allCompetitors.length} shown
+              </p>
+            </div>
+            {!demo && (
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                className="map-add-facility shrink-0"
+                aria-label="Add reference facility"
+                onClick={() => setAddOpen(true)}
+              >
+                <Plus className="size-4" />
+              </Button>
+            )}
           </div>
           <div className="reference-list-items flex-1 overflow-y-auto divide-y divide-border">
             {competitors.length === 0 ? (
@@ -671,9 +1010,8 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                   >
                     <div className="flex items-start gap-2">
                       <span
-                        className={`mt-1 inline-block size-2.5 shrink-0 rounded-full ring-1 ${
-                          c.custom ? 'bg-cyan-400 ring-cyan-700/40' : 'bg-white ring-black/30'
-                        }`}
+                        className="mt-1 inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30"
+                        style={{ background: referenceColor }}
                       />
                       <div className="min-w-0">
                         <p className="text-sm font-medium leading-snug truncate pr-5">

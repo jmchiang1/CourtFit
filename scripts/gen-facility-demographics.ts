@@ -33,10 +33,16 @@ function loadEnv(name: string): void {
 
 async function main() {
   loadEnv('CENSUS_API_KEY')
+  loadEnv('MAPBOX_TOKEN') // optional — drive-time isochrones; falls back to radius if absent
   if (!process.env.CENSUS_API_KEY) {
     console.error('CENSUS_API_KEY not set (checked .env.local). Aborting.')
     process.exit(1)
   }
+  console.log(
+    process.env.MAPBOX_TOKEN
+      ? 'Using drive-time isochrones (MAPBOX_TOKEN set).'
+      : 'No MAPBOX_TOKEN — baking 5-mile radius demographics.',
+  )
 
   const out: Record<string, Demographics> = {}
   let ok = 0

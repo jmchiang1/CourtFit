@@ -89,12 +89,19 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
     })
   }, [demo, unmappedCount])
 
-  // Automatically fetch 5-mile trade-area demographics for any geocoded property
-  // that doesn't have them cached yet (legacy rows, or where a prior Census fetch
-  // failed). No button — new saves already fetch demographics at save time; this
-  // just fills the gaps once per session.
+  // Automatically fetch trade-area demographics for any geocoded property that
+  // doesn't have them cached yet, or is still on the legacy radius shape (so it
+  // gets upgraded to drive-time once Mapbox is configured). No button — new saves
+  // already fetch at save time; this just fills/upgrades gaps once per session.
+  // The server action decides whether radius rows are actually worth re-fetching
+  // (it skips the upgrade when Mapbox isn't configured).
   const needsDemographics = useMemo(
-    () => rows.some((r) => r.latitude != null && r.demographics_json == null),
+    () =>
+      rows.some(
+        (r) =>
+          r.latitude != null &&
+          (r.demographics_json == null || r.demographics_json.mode !== 'drive'),
+      ),
     [rows],
   )
 
@@ -130,13 +137,13 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Properties</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          {/* <p className="text-sm text-muted-foreground mt-0.5">
             {demo
               ? 'Sample properties — sign in to save your own analyses.'
               : view === 'map'
                 ? 'All saved locations on the map. Click a pin for details.'
                 : 'All saved analyses. Click a row to view the verdict.'}
-          </p>
+          </p> */}
         </div>
         <div className="flex items-center gap-2">
           <Tabs value={view} onValueChange={(v) => setView(v as View)}>

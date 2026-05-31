@@ -9,6 +9,7 @@ import { FinancialBreakdown } from '@/components/Dashboard/FinancialBreakdown'
 import { RiskFlagsPanel } from '@/components/Dashboard/RiskFlagsPanel'
 import { SummaryPanel } from '@/components/Dashboard/SummaryPanel'
 import { StartupCostBreakdown } from '@/components/Dashboard/StartupCostBreakdown'
+import { ConditionPanel } from '@/components/Dashboard/ConditionPanel'
 import { DemographicsPanel } from '@/components/Dashboard/DemographicsPanel'
 import { Pencil, Trash2, MapPin, X, ExternalLink } from 'lucide-react'
 import { useMemo } from 'react'
@@ -39,6 +40,8 @@ export function VerdictModal({ property, onClose, onEdit, onDelete }: Props) {
       // Merge with defaults so old saved properties (missing the new
       // renovation-breakdown fields) still compute correctly.
       assumptions: { ...DEFAULT_ASSUMPTIONS, ...property.assumptions_json },
+      // Condition assessment (when present) scales the renovation estimate.
+      condition: property.condition_json,
     })
   }, [property])
 
@@ -142,7 +145,14 @@ export function VerdictModal({ property, onClose, onEdit, onDelete }: Props) {
               </div>
             </div>
             <FinancialBreakdown result={result} />
-            <StartupCostBreakdown result={result} />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">
+              <div className="min-w-0">
+                <StartupCostBreakdown result={result} />
+              </div>
+              <div className="min-w-0">
+                <ConditionPanel condition={property.condition_json} />
+              </div>
+            </div>
             <SummaryPanel result={result} address={property.address} />
           </div>
         )}

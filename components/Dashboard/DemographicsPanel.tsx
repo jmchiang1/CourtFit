@@ -57,7 +57,7 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
   if (!demographics) {
     return (
       <div className="surface p-5">
-        <h3 className="text-sm font-semibold tracking-tight mb-3">Demand — 5-mile radius</h3>
+        <h3 className="text-sm font-semibold tracking-tight mb-3">Demand — trade area</h3>
         <div className="rounded-lg border border-dashed border-white/10 px-4 py-6 text-center">
           <div className="text-sm text-muted-foreground">Demographics not available yet.</div>
           <div className="text-xs text-muted-foreground mt-1">
@@ -70,11 +70,17 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
 
   const d = demographics
   const e = d.ethnicity
+  const isDrive = d.mode === 'drive'
+  const cb = d.catchments?.badminton
+  const cp = d.catchments?.pickleball
+  const driveSuffix = (min: number | undefined) => (min ? ` · ${min}-min drive` : '')
 
   return (
     <div className="surface p-5">
       <div className="flex items-baseline justify-between mb-4">
-        <h3 className="text-sm font-semibold tracking-tight">Demand — {d.radiusMiles}-mile radius</h3>
+        <h3 className="text-sm font-semibold tracking-tight">
+          {isDrive ? 'Demand — drive-time catchment' : `Demand — ${d.radiusMiles}-mile radius`}
+        </h3>
         <span className="text-xs text-muted-foreground tabular-nums">
           {d.totalPopulation.toLocaleString()} people · {d.tractCount} tracts · ACS {d.vintage}
         </span>
@@ -85,13 +91,13 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
           sport="Badminton"
           score={d.badmintonFit.score}
           label={d.badmintonFit.label}
-          hint={`${fmtPct(e.targetShare)} East + South Asian`}
+          hint={`${fmtPct((cb?.ethnicity ?? e).targetShare)} East + South Asian${driveSuffix(cb?.driveMinutes)}`}
         />
         <FitCard
           sport="Pickleball"
           score={d.pickleballFit.score}
           label={d.pickleballFit.label}
-          hint={`broad demand · ${fmtPct(d.age.adult18to64Share)} aged 18–64`}
+          hint={`${fmtPct((cp?.age ?? d.age).adult18to64Share)} aged 18–64${driveSuffix(cp?.driveMinutes)}`}
         />
       </div>
 
@@ -131,6 +137,15 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
           </div>
         </div>
       </div>
+
+      {isDrive && cb && cp && (
+        <p className="mt-4 text-[11px] leading-snug text-muted-foreground">
+          Catchments are driving-time isochrones. Figures above cover the badminton{' '}
+          {cb.driveMinutes}-min catchment ({cb.totalPopulation.toLocaleString()} people); pickleball
+          demand uses a tighter {cp.driveMinutes}-min catchment ({cp.totalPopulation.toLocaleString()}{' '}
+          people).
+        </p>
+      )}
     </div>
   )
 }

@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { geocodeAddress } from '@/lib/geocode'
 import { fetchDemographics } from '@/lib/census'
+import { assessCondition } from '@/lib/condition'
 import type { Assumptions, ExtractedListing, Rating } from '@/types/analysis'
 import type { Demographics } from '@/types/demographics'
+import type { ConditionAssessment } from '@/types/condition'
 
 export interface SaveInput {
   id?: string
@@ -40,12 +42,21 @@ export async function saveProperty(input: SaveInput) {
     demographics_json: null,
     demographics_at: null,
   }
+  // Cached condition assessment: reuse when the listing itself is unchanged so a
+  // pure label/assumptions edit doesn't trigger another vision call.
+  let cond: { condition_json: ConditionAssessment | null; condition_at: string | null } = {
+    condition_json: null,
+    condition_at: null,
+  }
+  let conditionCached = false
   let needsGeocode = !!input.address
   let coordsUnchanged = false
   if (input.id) {
     const { data: existing } = await sb
       .from('properties')
-      .select('address, latitude, longitude, geocoded_at, demographics_json, demographics_at')
+      .select(
+        'address, latitude, longitude, geocoded_at, demographics_json, demographics_at, listing_json, condition_json, condition_at',
+      )
       .eq('id', input.id)
       .single()
     if (existing) {
@@ -63,15 +74,19 @@ export async function saveProperty(input: SaveInput) {
         needsGeocode = false
         coordsUnchanged = true
       }
+      const listingUnchanged =
+        JSON.stringify(existing.listing_json) === JSON.stringify(input.listing)
+      if (listingUnchanged && existing.condition_json) {
+        cond = {
+          condition_json: existing.condition_json as ConditionAssessment,
+          condition_at: existing.condition_at,
+        }
+        conditionCached = true
+      }
     }
   }
-  // TEMP DEBUG — remove after diagnosing missing demographics.
-  const dbg = (m: string) => console.warn(`[save-debug] ${m}`)
-  dbg(`SAVE id=${input.id ?? 'new'} address=${JSON.stringify(input.address)} needsGeocode=${needsGeocode} coordsUnchanged=${coordsUnchanged} CENSUS_KEY=${!!process.env.CENSUS_API_KEY} GMAPS_KEY=${!!(process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)}`)
-
   if (needsGeocode) {
     const point = await geocodeAddress(input.address)
-    dbg(`geocode → ${point ? `${point.lat},${point.lng}` : 'NULL'}`)
     if (point) {
       geo = { latitude: point.lat, longitude: point.lng, geocoded_at: new Date().toISOString() }
     }
@@ -80,12 +95,19 @@ export async function saveProperty(input: SaveInput) {
   // Fetch demographics whenever we have fresh coords or never had them cached.
   if (geo.latitude != null && (!coordsUnchanged || !demo.demographics_json)) {
     const demographics = await fetchDemographics(geo.latitude, geo.longitude)
-    dbg(`fetchDemographics(${geo.latitude},${geo.longitude}) → ${demographics ? `pop=${demographics.totalPopulation} tracts=${demographics.tractCount}` : 'NULL'}`)
     if (demographics) {
       demo = { demographics_json: demographics, demographics_at: new Date().toISOString() }
     }
-  } else {
-    dbg(`SKIP demographics (lat=${geo.latitude} coordsUnchanged=${coordsUnchanged} hasDemo=${!!demo.demographics_json})`)
+  }
+
+  // Assess condition (renovation scope + NYC/Nassau code checklist) on first
+  // save or when the listing changed. Best-effort — failure leaves the flat
+  // baseline renovation estimate in place.
+  if (!conditionCached) {
+    const condition = await assessCondition(input.listing)
+    if (condition) {
+      cond = { condition_json: condition, condition_at: new Date().toISOString() }
+    }
   }
 
   const row = {
@@ -103,14 +125,14 @@ export async function saveProperty(input: SaveInput) {
     geocoded_at: geo.geocoded_at,
     demographics_json: demo.demographics_json,
     demographics_at: demo.demographics_at,
+    condition_json: cond.condition_json,
+    condition_at: cond.condition_at,
     updated_at: new Date().toISOString(),
   }
 
   const result = input.id
     ? await sb.from('properties').update(row).eq('id', input.id).select().single()
     : await sb.from('properties').insert(row).select().single()
-
-  dbg(`DB ${input.id ? 'update' : 'insert'} → error=${result.error?.message ?? 'none'} wroteDemo=${!!row.demographics_json}`)
 
   if (result.error) return { error: result.error.message }
   revalidatePath('/')

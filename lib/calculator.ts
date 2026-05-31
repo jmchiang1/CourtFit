@@ -1,4 +1,5 @@
-import type { Assumptions } from '@/types/analysis'
+import type { Assumptions, StartupCostLineItem } from '@/types/analysis'
+import type { ConditionAssessment, ConditionSystemKey } from '@/types/condition'
 
 export function calculateCourts(warehouseSqft: number, a: Assumptions) {
   const usable = warehouseSqft * a.usableCourtAreaPct
@@ -42,52 +43,96 @@ export function calculateExpenses(input: {
   return { rent, payroll, utilities, insurance, maintenance, royalty, marketing, miscAdmin, total }
 }
 
+// Fire / life-safety (sprinklers, alarm, egress, ADA) for assembly occupancy
+// (NYC BC Group A-3). Only priced when a condition assessment is present, since
+// the original flat baseline didn't carry a dedicated line for it.
+const FIRE_LIFE_SAFETY_PER_SQFT = 4
+
+const clampMult = (n: number) => Math.max(0, Math.min(2, n))
+
 export function calculateStartupCost(input: {
   totalSqft: number
   warehouseSqft: number
   officeSqft: number
   totalCourts: number
   a: Assumptions
+  condition?: ConditionAssessment | null
 }) {
-  const { totalSqft, warehouseSqft, officeSqft, totalCourts, a } = input
+  const { totalSqft, warehouseSqft, officeSqft, totalCourts, a, condition } = input
 
-  const hvac = totalSqft * a.renovationHvacPerSqft
-  const electrical = totalSqft * a.renovationElectricalPerSqft
-  const courtLighting = warehouseSqft * a.renovationCourtLightingPerSqft
-  const plumbing = totalSqft * a.renovationPlumbingPerSqft
-  const courtFlooring = warehouseSqft * a.renovationCourtFlooringPerSqft
-  const walls = totalSqft * a.renovationWallsPerSqft
-  const officeBuildout = officeSqft * a.renovationOfficeBuildoutPerSqft
-  const bathrooms = a.renovationBathroomCost * a.renovationBathroomCount
-  const courtEquipment = totalCourts * a.renovationCourtEquipmentPerCourt
+  // Per-system condition multiplier (1 = baseline when not assessed / absent).
+  const sys = (key: ConditionSystemKey) => condition?.systems.find((s) => s.key === key) ?? null
+  const mult = (key: ConditionSystemKey) => (condition ? clampMult(sys(key)?.multiplier ?? 1) : 1)
+  const note = (key: ConditionSystemKey) => sys(key)?.note || undefined
+
+  // Baseline (un-scaled) amounts — also the reference total shown in the UI.
+  const base = {
+    hvac: totalSqft * a.renovationHvacPerSqft,
+    electrical: totalSqft * a.renovationElectricalPerSqft,
+    courtLighting: warehouseSqft * a.renovationCourtLightingPerSqft,
+    plumbing: totalSqft * a.renovationPlumbingPerSqft,
+    courtFlooring: warehouseSqft * a.renovationCourtFlooringPerSqft,
+    walls: totalSqft * a.renovationWallsPerSqft,
+    officeBuildout: officeSqft * a.renovationOfficeBuildoutPerSqft,
+    bathrooms: a.renovationBathroomCost * a.renovationBathroomCount,
+    courtEquipment: totalCourts * a.renovationCourtEquipmentPerCourt,
+  }
+
+  const baselineSubtotal =
+    base.hvac + base.electrical + base.courtLighting + base.plumbing + base.courtFlooring +
+    base.walls + base.officeBuildout + base.bathrooms + base.courtEquipment
+  const baselineMid =
+    baselineSubtotal * (1 + a.renovationPermitsDesignPct + a.renovationContingencyPct) + a.franchiseFee
+
+  // Condition-scaled amounts. Court equipment is new regardless, so unscaled.
+  const hvac = base.hvac * mult('hvac')
+  const electrical = base.electrical * mult('electrical')
+  const courtLighting = base.courtLighting * mult('lighting')
+  const plumbing = base.plumbing * mult('plumbing')
+  const courtFlooring = base.courtFlooring * mult('flooring')
+  const walls = base.walls * mult('walls')
+  const officeBuildout = base.officeBuildout * mult('office')
+  const bathrooms = base.bathrooms * mult('bathrooms')
+  const courtEquipment = base.courtEquipment
+  const fireLifeSafety = condition ? totalSqft * FIRE_LIFE_SAFETY_PER_SQFT * mult('fireSprinkler') : 0
 
   const subtotal =
     hvac + electrical + courtLighting + plumbing + courtFlooring +
-    walls + officeBuildout + bathrooms + courtEquipment
+    walls + officeBuildout + bathrooms + courtEquipment + fireLifeSafety
 
   const permitsDesign = subtotal * a.renovationPermitsDesignPct
   const contingency = subtotal * a.renovationContingencyPct
 
   const mid = subtotal + permitsDesign + contingency + a.franchiseFee
 
+  const line = (label: string, amount: number, key?: ConditionSystemKey): StartupCostLineItem =>
+    key && condition
+      ? { label, amount, multiplier: mult(key), note: note(key) }
+      : { label, amount }
+
+  const breakdown: StartupCostLineItem[] = [
+    line('HVAC', hvac, 'hvac'),
+    line('Electrical', electrical, 'electrical'),
+    line('Court lighting', courtLighting, 'lighting'),
+    line('Plumbing', plumbing, 'plumbing'),
+    line('Court flooring', courtFlooring, 'flooring'),
+    line('Walls & finishes', walls, 'walls'),
+    line('Office buildout', officeBuildout, 'office'),
+    line('Bathrooms', bathrooms, 'bathrooms'),
+    ...(condition ? [line('Fire & life-safety (assembly)', fireLifeSafety, 'fireSprinkler')] : []),
+    line('Court equipment', courtEquipment),
+    line('Permits & design', permitsDesign),
+    line('Contingency', contingency),
+    line('Franchise fee', a.franchiseFee),
+  ]
+
   return {
     low: mid * 0.85,
     mid,
     high: mid * 1.30,
-    breakdown: [
-      { label: 'HVAC', amount: hvac },
-      { label: 'Electrical', amount: electrical },
-      { label: 'Court lighting', amount: courtLighting },
-      { label: 'Plumbing', amount: plumbing },
-      { label: 'Court flooring', amount: courtFlooring },
-      { label: 'Walls & finishes', amount: walls },
-      { label: 'Office buildout', amount: officeBuildout },
-      { label: 'Bathrooms', amount: bathrooms },
-      { label: 'Court equipment', amount: courtEquipment },
-      { label: 'Permits & design', amount: permitsDesign },
-      { label: 'Contingency', amount: contingency },
-      { label: 'Franchise fee', amount: a.franchiseFee },
-    ],
+    baselineMid,
+    conditionApplied: !!condition,
+    breakdown,
   }
 }
 
@@ -106,7 +151,7 @@ import { generateFallbackSummary } from './summary-fallback'
 export const ESTIMATED_RENT_PER_SQFT_YR = 24
 
 export function calculateAnalysis(input: AnalysisInput): AnalysisResult {
-  const { listing, assumptions } = input
+  const { listing, assumptions, condition } = input
   const totalSqft = listing.totalSqft ?? 0
   const warehouseSqft = listing.warehouseSqft ?? totalSqft
   const effectiveRent = listing.rentPerSqftYr ?? ESTIMATED_RENT_PER_SQFT_YR
@@ -134,6 +179,7 @@ export function calculateAnalysis(input: AnalysisInput): AnalysisResult {
     officeSqft,
     totalCourts: courts.total,
     a: assumptions,
+    condition,
   })
   const paybackYears = calculatePaybackYears(startupCost.mid, noi)
 

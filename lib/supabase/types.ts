@@ -1,5 +1,6 @@
 import type { Assumptions, ExtractedListing, Rating } from '@/types/analysis'
 import type { Demographics } from '@/types/demographics'
+import type { ConditionAssessment } from '@/types/condition'
 
 export interface PropertyRow {
   id: string
@@ -21,6 +22,9 @@ export interface PropertyRow {
   /** Cached 5-mile trade-area demographics (null until fetched). */
   demographics_json: Demographics | null
   demographics_at: string | null
+  /** Cached AI condition assessment (null until assessed). */
+  condition_json: ConditionAssessment | null
+  condition_at: string | null
 }
 
 /** A competitor/reference facility the user added from the map. */

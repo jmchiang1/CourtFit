@@ -146,6 +146,10 @@
   html {
     @apply font-sans;
     color-scheme: dark;
+    /* Always reserve the scrollbar gutter so opening a dropdown/dialog (which
+       locks body scroll and hides the scrollbar) doesn't reflow the centered
+       layout and shift the page width. */
+    scrollbar-gutter: stable;
   }
   .tabular-nums {
     font-variant-numeric: tabular-nums;

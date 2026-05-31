@@ -1,12 +1,22 @@
-import type { Demographics } from '@/types/demographics'
+import type { Demographics, Catchment, Ethnicity, AgeBands } from '@/types/demographics'
 import { badmintonFit, pickleballFit } from '@/lib/fit-score'
+import { fetchIsochrone } from '@/lib/isochrone'
+import { DRIVE_MINUTES } from '@/lib/catchment'
+
+export { DRIVE_MINUTES }
 
 /**
- * Pull trade-area demographics within ~5 miles of a property from the US Census
- * ACS 5-year estimates, and derive badminton / pickleball demand fit scores.
+ * Pull trade-area demographics for a property from the US Census ACS 5-year
+ * estimates, and derive badminton / pickleball demand fit scores.
  *
- * Flow:
- *   1. TIGERweb (ArcGIS REST) — every census tract intersecting a 5-mile circle.
+ * The catchment is defined one of two ways:
+ *   - Drive-time (preferred, when MAPBOX_TOKEN is set): a per-sport Mapbox
+ *     driving isochrone (badminton wider, pickleball narrower) — respects roads
+ *     and water barriers.
+ *   - Radius (fallback): a single 5-mile straight-line circle feeding both.
+ *
+ * Flow for each catchment:
+ *   1. TIGERweb (ArcGIS REST) — census tracts intersecting the area.
  *   2. ACS API — summable population / ethnicity / income / age counts per tract.
  *   3. Aggregate across tracts and score.
  *
@@ -64,66 +74,68 @@ interface Accum {
   senior: number
 }
 
+/**
+ * Public entry point. Prefers sport-specific drive-time catchments; falls back
+ * to a 5-mile radius when Mapbox isn't configured or an isochrone fails, so the
+ * app keeps working with no token. All callers use this one function.
+ */
 export async function fetchDemographics(
   lat: number | null,
   lng: number | null,
 ): Promise<Demographics | null> {
   if (lat == null || lng == null) return null
 
+  if (process.env.MAPBOX_TOKEN) {
+    const drive = await fetchDriveTimeDemographics(lat, lng)
+    if (drive) return drive
+    // Isochrone or its aggregation failed — fall through to radius.
+  }
+  return fetchRadiusDemographics(lat, lng)
+}
+
+/** 5-mile straight-line circle around the point — the legacy / fallback mode. */
+async function fetchRadiusDemographics(lat: number, lng: number): Promise<Demographics | null> {
   const key = process.env.CENSUS_API_KEY
   if (!key) {
     console.warn('[census] No CENSUS_API_KEY set — skipping demographics.')
     return null
   }
-
   try {
     const geoids = await tractsWithinRadius(lat, lng)
-    if (!geoids.length) return null
-
-    // Group the wanted tract GEOIDs by state+county so we make one request per
-    // county. We query every tract in the county (`tract:*`) and filter to this
-    // set, which avoids long-URL limits from passing 70+ tract codes inline.
-    const byCounty = new Map<string, Set<string>>()
-    for (const g of geoids) {
-      if (g.length < 11) continue
-      const stateCounty = `${g.slice(0, 2)}:${g.slice(2, 5)}`
-      const set = byCounty.get(stateCounty) ?? new Set<string>()
-      set.add(g)
-      byCounty.set(stateCounty, set)
-    }
-    if (!byCounty.size) return null
-
-    const acc: Accum = {
-      population: 0, households: 0, aggIncome: 0,
-      eastAsian: 0, southAsian: 0,
-      under18: 0, prime: 0, mature: 0, senior: 0,
-    }
-
-    for (const [sc, wanted] of byCounty) {
-      const [state, county] = sc.split(':')
-      const [pop, age] = await Promise.all([
-        acsQuery(POP_VARS, state, county, wanted, key),
-        acsQuery(AGE_VARS, state, county, wanted, key),
-      ])
-      for (const row of pop) {
-        acc.population += sum(row, [POP])
-        acc.households += sum(row, [HOUSEHOLDS])
-        acc.aggIncome += sum(row, [AGG_INCOME])
-        acc.eastAsian += sum(row, EAST_ASIAN)
-        acc.southAsian += sum(row, SOUTH_ASIAN)
-      }
-      for (const row of age) {
-        acc.under18 += sum(row, AGE_UNDER18)
-        acc.prime += sum(row, AGE_PRIME)
-        acc.mature += sum(row, AGE_MATURE)
-        acc.senior += sum(row, AGE_SENIOR)
-      }
-    }
-
-    if (acc.population <= 0) return null
-    return assemble(acc, geoids.length)
+    const agg = await aggregateTracts(geoids, key)
+    if (!agg) return null
+    return assembleRadius(agg.acc, agg.tractCount)
   } catch (err) {
-    console.warn('[census] demographics fetch failed:', err)
+    console.warn('[census] radius demographics fetch failed:', err)
+    return null
+  }
+}
+
+/** Sport-specific drive-time isochrones — the preferred mode. */
+async function fetchDriveTimeDemographics(lat: number, lng: number): Promise<Demographics | null> {
+  const key = process.env.CENSUS_API_KEY
+  if (!key) {
+    console.warn('[census] No CENSUS_API_KEY set — skipping demographics.')
+    return null
+  }
+  try {
+    const [bRing, pRing] = await Promise.all([
+      fetchIsochrone(lat, lng, DRIVE_MINUTES.badminton),
+      fetchIsochrone(lat, lng, DRIVE_MINUTES.pickleball),
+    ])
+    if (!bRing || !pRing) return null
+
+    const [bAgg, pAgg] = await Promise.all([
+      tractsWithinPolygon(bRing).then((ids) => aggregateTracts(ids, key)),
+      tractsWithinPolygon(pRing).then((ids) => aggregateTracts(ids, key)),
+    ])
+    if (!bAgg || !pAgg) return null
+
+    const badminton = buildCatchment(bAgg.acc, bAgg.tractCount, 'badminton', bRing)
+    const pickleball = buildCatchment(pAgg.acc, pAgg.tractCount, 'pickleball', pRing)
+    return assembleDrive(badminton, pickleball)
+  } catch (err) {
+    console.warn('[census] drive-time demographics fetch failed:', err)
     return null
   }
 }
@@ -146,21 +158,119 @@ async function tractsWithinRadius(lat: number, lng: number): Promise<string[]> {
     console.warn(`[census] TIGERweb HTTP ${res.status}`)
     return []
   }
-  const data = (await res.json()) as {
-    features?: { attributes?: { GEOID?: string } }[]
+  return extractGeoids(await res.json())
+}
+
+/**
+ * Census tract GEOIDs intersecting an arbitrary polygon (a drive-time isochrone
+ * ring of [lng,lat] pairs). POSTed form-encoded because isochrone polygons carry
+ * far more vertices than fit in a query string. ArcGIS expects outer rings in
+ * clockwise order, so we normalize orientation first.
+ */
+async function tractsWithinPolygon(ring: number[][]): Promise<string[]> {
+  const body = new URLSearchParams()
+  body.set(
+    'geometry',
+    JSON.stringify({ rings: [ensureClockwise(ring)], spatialReference: { wkid: 4326 } }),
+  )
+  body.set('geometryType', 'esriGeometryPolygon')
+  body.set('inSR', '4326')
+  body.set('spatialRel', 'esriSpatialRelIntersects')
+  body.set('outFields', 'GEOID')
+  body.set('returnGeometry', 'false')
+  body.set('f', 'json')
+
+  const res = await fetch(TIGERWEB_TRACTS, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    console.warn(`[census] TIGERweb polygon HTTP ${res.status}`)
+    return []
   }
-  const ids = (data.features ?? [])
+  return extractGeoids(await res.json())
+}
+
+function extractGeoids(data: unknown): string[] {
+  const features = (data as { features?: { attributes?: { GEOID?: string } }[] }).features ?? []
+  const ids = features
     .map((f) => f.attributes?.GEOID)
     .filter((g): g is string => typeof g === 'string')
   return Array.from(new Set(ids))
 }
 
+/** Shoelace signed area; reverse to clockwise (ArcGIS outer-ring convention). */
+function ensureClockwise(ring: number[][]): number[][] {
+  let a = 0
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [x1, y1] = ring[i]
+    const [x2, y2] = ring[i + 1]
+    a += x1 * y2 - x2 * y1
+  }
+  // a > 0 ⇒ counter-clockwise (GeoJSON exterior) ⇒ flip for ArcGIS.
+  return a > 0 ? [...ring].reverse() : ring
+}
+
 type AcsRow = Record<string, number>
 
 /**
+ * Aggregate ACS counts across the given tract GEOIDs into one Accum. Groups by
+ * state+county and queries every tract in each county (`tract:*`), filtering to
+ * the wanted set — which avoids long-URL limits from listing many tract codes.
+ * Returns null when there are no usable tracts or the area has no population.
+ */
+async function aggregateTracts(
+  geoids: string[],
+  key: string,
+): Promise<{ acc: Accum; tractCount: number } | null> {
+  if (!geoids.length) return null
+
+  const byCounty = new Map<string, Set<string>>()
+  for (const g of geoids) {
+    if (g.length < 11) continue
+    const stateCounty = `${g.slice(0, 2)}:${g.slice(2, 5)}`
+    const set = byCounty.get(stateCounty) ?? new Set<string>()
+    set.add(g)
+    byCounty.set(stateCounty, set)
+  }
+  if (!byCounty.size) return null
+
+  const acc: Accum = {
+    population: 0, households: 0, aggIncome: 0,
+    eastAsian: 0, southAsian: 0,
+    under18: 0, prime: 0, mature: 0, senior: 0,
+  }
+
+  for (const [sc, wanted] of byCounty) {
+    const [state, county] = sc.split(':')
+    const [pop, age] = await Promise.all([
+      acsQuery(POP_VARS, state, county, wanted, key),
+      acsQuery(AGE_VARS, state, county, wanted, key),
+    ])
+    for (const row of pop) {
+      acc.population += sum(row, [POP])
+      acc.households += sum(row, [HOUSEHOLDS])
+      acc.aggIncome += sum(row, [AGG_INCOME])
+      acc.eastAsian += sum(row, EAST_ASIAN)
+      acc.southAsian += sum(row, SOUTH_ASIAN)
+    }
+    for (const row of age) {
+      acc.under18 += sum(row, AGE_UNDER18)
+      acc.prime += sum(row, AGE_PRIME)
+      acc.mature += sum(row, AGE_MATURE)
+      acc.senior += sum(row, AGE_SENIOR)
+    }
+  }
+
+  if (acc.population <= 0) return null
+  return { acc, tractCount: geoids.length }
+}
+
+/**
  * Query ACS for `vars` across every tract in one county, then keep only the
- * rows whose GEOID is in `wanted` (the tracts inside our radius). Querying
- * `tract:*` and filtering avoids long-URL limits from listing many tract codes.
+ * rows whose GEOID is in `wanted`.
  */
 async function acsQuery(
   vars: string[],
@@ -207,47 +317,93 @@ async function acsQuery(
 
 const sum = (row: AcsRow, cols: string[]) => cols.reduce((t, c) => t + (row[c] ?? 0), 0)
 
-function assemble(acc: Accum, tractCount: number): Demographics {
+/** Derive the shared share/breakdown shapes + fit inputs from an Accum. */
+function derive(acc: Accum) {
   const pop = acc.population
   const targetAsian = acc.eastAsian + acc.southAsian
   const meanHouseholdIncome = acc.households > 0 ? Math.round(acc.aggIncome / acc.households) : null
-  const targetShare = targetAsian / pop
-  const prime18to44Share = acc.prime / pop
-  const adult18to64Share = (acc.prime + acc.mature) / pop
-
+  const ethnicity: Ethnicity = {
+    eastAsian: acc.eastAsian,
+    southAsian: acc.southAsian,
+    targetAsian,
+    eastAsianShare: acc.eastAsian / pop,
+    southAsianShare: acc.southAsian / pop,
+    targetShare: targetAsian / pop,
+  }
+  const age: AgeBands = {
+    under18: acc.under18,
+    prime18to44: acc.prime,
+    mature45to64: acc.mature,
+    senior65plus: acc.senior,
+    prime18to44Share: acc.prime / pop,
+    adult18to64Share: (acc.prime + acc.mature) / pop,
+  }
   const fitInputs = {
-    targetShare,
+    targetShare: ethnicity.targetShare,
     meanHouseholdIncome,
-    prime18to44Share,
-    adult18to64Share,
+    prime18to44Share: age.prime18to44Share,
+    adult18to64Share: age.adult18to64Share,
     totalPopulation: pop,
   }
+  return { pop, meanHouseholdIncome, ethnicity, age, fitInputs }
+}
 
+function assembleRadius(acc: Accum, tractCount: number): Demographics {
+  const { pop, meanHouseholdIncome, ethnicity, age, fitInputs } = derive(acc)
   return {
     vintage: ACS_VINTAGE,
+    mode: 'radius',
     radiusMiles: RADIUS_MILES,
     tractCount,
     totalPopulation: pop,
     households: acc.households,
     meanHouseholdIncome,
-    ethnicity: {
-      eastAsian: acc.eastAsian,
-      southAsian: acc.southAsian,
-      targetAsian,
-      eastAsianShare: acc.eastAsian / pop,
-      southAsianShare: acc.southAsian / pop,
-      targetShare,
-    },
-    age: {
-      under18: acc.under18,
-      prime18to44: acc.prime,
-      mature45to64: acc.mature,
-      senior65plus: acc.senior,
-      prime18to44Share,
-      adult18to64Share,
-    },
+    ethnicity,
+    age,
     badmintonFit: badmintonFit(fitInputs),
     pickleballFit: pickleballFit(fitInputs),
+    fetchedAt: new Date().toISOString(),
+  }
+}
+
+function buildCatchment(
+  acc: Accum,
+  tractCount: number,
+  sport: 'badminton' | 'pickleball',
+  ring: number[][],
+): Catchment {
+  const { pop, meanHouseholdIncome, ethnicity, age, fitInputs } = derive(acc)
+  const fit = sport === 'badminton' ? badmintonFit(fitInputs) : pickleballFit(fitInputs)
+  return {
+    kind: 'drive',
+    driveMinutes: DRIVE_MINUTES[sport],
+    tractCount,
+    totalPopulation: pop,
+    households: acc.households,
+    meanHouseholdIncome,
+    ethnicity,
+    age,
+    fit,
+    ring,
+  }
+}
+
+/** Top-level flat fields mirror the (wider) badminton catchment for the panel. */
+function assembleDrive(badminton: Catchment, pickleball: Catchment): Demographics {
+  const b = badminton
+  return {
+    vintage: ACS_VINTAGE,
+    mode: 'drive',
+    radiusMiles: RADIUS_MILES, // retained for type/back-compat; not meaningful in drive mode
+    tractCount: b.tractCount,
+    totalPopulation: b.totalPopulation,
+    households: b.households,
+    meanHouseholdIncome: b.meanHouseholdIncome,
+    ethnicity: b.ethnicity,
+    age: b.age,
+    badmintonFit: badminton.fit,
+    pickleballFit: pickleball.fit,
+    catchments: { badminton, pickleball },
     fetchedAt: new Date().toISOString(),
   }
 }

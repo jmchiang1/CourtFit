@@ -1,3 +1,5 @@
+import type { ConditionAssessment } from '@/types/condition'
+
 export interface ExtractedListing {
   address: string | null
   totalSqft: number | null
@@ -56,11 +58,17 @@ export interface Assumptions {
 export interface StartupCostLineItem {
   label: string
   amount: number
+  /** Condition multiplier applied to the baseline (present only when assessed). */
+  multiplier?: number
+  /** What the condition assessment observed for this line. */
+  note?: string
 }
 
 export interface AnalysisInput {
   listing: ExtractedListing
   assumptions: Assumptions
+  /** Optional AI condition assessment; when present it scales the renovation. */
+  condition?: ConditionAssessment | null
 }
 
 export type Rating =
@@ -109,6 +117,10 @@ export interface AnalysisResult {
     low: number
     mid: number
     high: number
+    /** Flat baseline mid (no condition scaling) — shown as a reference. */
+    baselineMid: number
+    /** True when a condition assessment scaled this estimate. */
+    conditionApplied: boolean
     breakdown: StartupCostLineItem[]
   }
   paybackYears: number | null
