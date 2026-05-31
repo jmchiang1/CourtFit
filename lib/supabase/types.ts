@@ -22,3 +22,19 @@ export interface PropertyRow {
   demographics_json: Demographics | null
   demographics_at: string | null
 }
+
+/** A competitor/reference facility the user added from the map. */
+export interface ReferenceFacilityRow {
+  id: string
+  user_id: string
+  created_at: string
+  name: string
+  address: string
+  /** Sport tags; values match the `Sport` union ('Badminton' | 'Pickleball'). */
+  sports: string[]
+  latitude: number | null
+  longitude: number | null
+  geocoded_at: string | null
+  demographics_json: Demographics | null
+  demographics_at: string | null
+}

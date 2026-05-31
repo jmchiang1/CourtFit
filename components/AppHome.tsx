@@ -66,14 +66,16 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
   }, [])
 
   // Properties saved before geocoding existed have an address but no coords.
-  // Backfill them once, the first time the user opens the map.
+  // Geocoding works straight from the address, so backfill once on load — no
+  // need to wait for the map view. This also unblocks the demographics fill
+  // below, which requires coordinates.
   const unmappedCount = useMemo(
     () => rows.filter((r) => r.address && r.latitude == null).length,
     [rows],
   )
 
   useEffect(() => {
-    if (demo || view !== 'map' || backfilledRef.current || unmappedCount === 0) return
+    if (demo || backfilledRef.current || unmappedCount === 0) return
     backfilledRef.current = true
     startReload(async () => {
       const { updated } = await geocodeMissing()
@@ -85,7 +87,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
         setRows(list)
       }
     })
-  }, [demo, view, unmappedCount])
+  }, [demo, unmappedCount])
 
   // Automatically fetch 5-mile trade-area demographics for any geocoded property
   // that doesn't have them cached yet (legacy rows, or where a prior Census fetch
@@ -171,6 +173,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           rows={rows}
           onView={(row) => setViewing(row)}
           unmappedCount={unmappedCount}
+          demo={demo}
         />
       )}
 

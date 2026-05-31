@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { MapPin, Eye, ExternalLink, Search } from 'lucide-react'
+import { MapPin, Eye, ExternalLink, Search, Plus, Trash2 } from 'lucide-react'
 import type { Rating } from '@/types/analysis'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
 import {
@@ -35,6 +35,12 @@ import {
   type Sport,
   type ReferenceFacility,
 } from '@/lib/reference-facilities'
+import {
+  listReferenceFacilities,
+  deleteReferenceFacility,
+} from '@/app/actions/reference-facilities'
+import type { ReferenceFacilityRow } from '@/lib/supabase/types'
+import { AddFacilityDialog } from '@/components/AddFacilityDialog'
 
 // Pin colors mirror the rating semantics used elsewhere in the app.
 const RATING_COLOR: Record<Rating, { bg: string; border: string; glyph: string }> = {
@@ -73,6 +79,16 @@ function competitorIcon(): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
+// Facilities the user added get a cyan ring so they stand out from the curated
+// white reference markers.
+const CUSTOM_RING = '#22d3ee'
+function customFacilityIcon(): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">` +
+    `<circle cx="13" cy="13" r="9" fill="${COMPETITOR_COLOR}" stroke="${CUSTOM_RING}" stroke-width="3"/></svg>`
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`
+}
+
 interface PropertyPoint {
   kind: 'property'
   id: string
@@ -93,6 +109,10 @@ interface CompetitorPoint {
   position: { lat: number; lng: number }
   region: Region | null
   facility: ReferenceFacility
+  /** Resolved demographics (baked file for built-ins, row data for custom). */
+  demographics: Demographics | null
+  /** Present for user-added facilities — carries the row id for deletion. */
+  custom?: { id: string }
 }
 
 type Selected = { kind: 'property' | 'competitor'; id: string } | null
@@ -102,6 +122,8 @@ interface Props {
   onView: (row: PropertyRow) => void
   /** Count of rows that have an address but no coordinates yet. */
   unmappedCount?: number
+  /** Demo mode (no auth) — hides the "Add facility" affordance. */
+  demo?: boolean
 }
 
 /** Fits the map viewport to enclose every visible marker when the set changes. */
@@ -199,7 +221,7 @@ function SportChips({ sports }: { sports: Sport[] }) {
   )
 }
 
-export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
+export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
   // Advanced Markers require a real cloud Map ID. When one isn't configured we
   // fall back to classic colored markers so the map still works (and we avoid
@@ -217,6 +239,27 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
   const [region, setRegion] = useState<'all' | Region>('all')
   const [minCourts, setMinCourts] = useState(0)
   const [search, setSearch] = useState('')
+
+  // User-added reference facilities (signed-in only).
+  const [custom, setCustom] = useState<ReferenceFacilityRow[]>([])
+  const [addOpen, setAddOpen] = useState(false)
+
+  useEffect(() => {
+    if (demo) return
+    let active = true
+    listReferenceFacilities().then((list) => {
+      if (active) setCustom(list)
+    })
+    return () => {
+      active = false
+    }
+  }, [demo])
+
+  const handleDeleteFacility = (id: string) => {
+    setCustom((cur) => cur.filter((r) => r.id !== id))
+    setSelected((cur) => (cur?.kind === 'competitor' && cur.id === `custom-${id}` ? null : cur))
+    void deleteReferenceFacility(id)
+  }
 
   const q = search.trim().toLowerCase()
 
@@ -248,14 +291,34 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
   }, [rows])
 
   const allCompetitors = useMemo<CompetitorPoint[]>(() => {
-    return REFERENCE_FACILITIES.map((f) => ({
-      kind: 'competitor' as const,
+    const builtins: CompetitorPoint[] = REFERENCE_FACILITIES.map((f) => ({
+      kind: 'competitor',
       id: f.name,
       position: { lat: f.lat, lng: f.lng },
       region: facilityRegion(f),
       facility: f,
+      demographics: FACILITY_DEMOGRAPHICS[f.name] ?? null,
     }))
-  }, [])
+    const added: CompetitorPoint[] = custom
+      .filter((r) => r.latitude != null && r.longitude != null)
+      .map((r) => ({
+        kind: 'competitor',
+        id: `custom-${r.id}`,
+        position: { lat: r.latitude as number, lng: r.longitude as number },
+        region: detectRegion(r.address),
+        facility: {
+          name: r.name,
+          address: r.address,
+          sports: r.sports as Sport[],
+          lat: r.latitude as number,
+          lng: r.longitude as number,
+        },
+        demographics: r.demographics_json,
+        custom: { id: r.id },
+      }))
+    // User-added first so they sort to the top of the reference list.
+    return [...added, ...builtins]
+  }, [custom])
 
   // Regions that actually appear (across both layers) drive the region dropdown.
   const presentRegions = useMemo(() => {
@@ -398,6 +461,19 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
             className="map-search-input h-8 w-[220px] pl-8 text-sm"
           />
         </div>
+
+        {!demo && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="map-add-facility ml-auto gap-1.5"
+            onClick={() => setAddOpen(true)}
+          >
+            <Plus className="size-3.5" />
+            Add facility
+          </Button>
+        )}
       </div>
 
       {minCourts > 0 && (
@@ -455,7 +531,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
                   key={c.id}
                   position={c.position}
                   title={c.facility.name}
-                  icon={competitorIcon()}
+                  icon={c.custom ? customFacilityIcon() : competitorIcon()}
                   onClick={() => setSelected({ kind: 'competitor', id: c.id })}
                 />
               ))}
@@ -521,20 +597,32 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
                       {selectedCompetitor.facility.address}
                     </p>
                     <SportChips sports={selectedCompetitor.facility.sports} />
-                    {FACILITY_DEMOGRAPHICS[selectedCompetitor.facility.name] && (
-                      <DemandMini d={FACILITY_DEMOGRAPHICS[selectedCompetitor.facility.name]} />
+                    {selectedCompetitor.demographics && (
+                      <DemandMini d={selectedCompetitor.demographics} />
                     )}
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                        selectedCompetitor.facility.address,
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 inline-flex items-center gap-1 text-xs text-neutral-600 hover:text-black"
-                    >
-                      <ExternalLink className="size-3.5" />
-                      Open in Google Maps
-                    </a>
+                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                          selectedCompetitor.facility.address,
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-neutral-600 hover:text-black"
+                      >
+                        <ExternalLink className="size-3.5" />
+                        Open in Google Maps
+                      </a>
+                      {selectedCompetitor.custom && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFacility(selectedCompetitor.custom!.id)}
+                          className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700"
+                        >
+                          <Trash2 className="size-3.5" />
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </InfoWindow>
               )}
@@ -551,6 +639,12 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
               <span className="inline-block size-2.5 rounded-full bg-white ring-1 ring-black/40" />
               <span className="text-muted-foreground">Reference facilities</span>
             </div>
+            {custom.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block size-2.5 rounded-full bg-cyan-400 ring-1 ring-cyan-700/40" />
+                <span className="text-muted-foreground">Added by you</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -567,38 +661,68 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0 }: Props) {
               <p className="p-3 text-xs text-muted-foreground">No facilities match the filters.</p>
             ) : (
               competitors.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => focusFacility(c)}
-                  className={`reference-item block w-full text-left px-3 py-2 hover:bg-foreground/5 transition ${
-                    selected?.kind === 'competitor' && selected.id === c.id ? 'bg-foreground/5' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <span className="mt-1 inline-block size-2.5 shrink-0 rounded-full bg-white ring-1 ring-black/30" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium leading-snug truncate">{c.facility.name}</p>
-                      <p className="text-xs text-muted-foreground leading-snug truncate">
-                        {c.facility.address}
-                      </p>
-                      <div className="mt-1">
-                        <SportChips sports={c.facility.sports} />
-                      </div>
-                      {FACILITY_DEMOGRAPHICS[c.facility.name] && (
-                        <p className="mt-1 text-[10px] tabular-nums text-muted-foreground">
-                          5-mi demand · Badminton {FACILITY_DEMOGRAPHICS[c.facility.name].badmintonFit.score}
-                          {' · '}Pickleball {FACILITY_DEMOGRAPHICS[c.facility.name].pickleballFit.score}
+                <div key={c.id} className="reference-item group relative">
+                  <button
+                    type="button"
+                    onClick={() => focusFacility(c)}
+                    className={`block w-full text-left px-3 py-2 hover:bg-foreground/5 transition ${
+                      selected?.kind === 'competitor' && selected.id === c.id ? 'bg-foreground/5' : ''
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <span
+                        className={`mt-1 inline-block size-2.5 shrink-0 rounded-full ring-1 ${
+                          c.custom ? 'bg-cyan-400 ring-cyan-700/40' : 'bg-white ring-black/30'
+                        }`}
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium leading-snug truncate pr-5">
+                          {c.facility.name}
                         </p>
-                      )}
+                        <p className="text-xs text-muted-foreground leading-snug truncate">
+                          {c.facility.address}
+                        </p>
+                        <div className="mt-1">
+                          <SportChips sports={c.facility.sports} />
+                        </div>
+                        {c.demographics && (
+                          <p className="mt-1 text-[10px] tabular-nums text-muted-foreground">
+                            5-mi demand · Badminton {c.demographics.badmintonFit.score}
+                            {' · '}Pickleball {c.demographics.pickleballFit.score}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </button>
+                  </button>
+                  {c.custom && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteFacility(c.custom!.id)}
+                      aria-label={`Remove ${c.facility.name}`}
+                      className="absolute right-2 top-2 hidden rounded p-1 text-muted-foreground hover:text-rose-400 group-hover:block"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  )}
+                </div>
               ))
             )}
           </div>
         </aside>
       </div>
+
+      <AddFacilityDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onAdded={(row) => {
+          setCustom((cur) => [row, ...cur])
+          setShowCompetitors(true)
+          if (row.latitude != null && row.longitude != null) {
+            setSelected({ kind: 'competitor', id: `custom-${row.id}` })
+            setFocus({ lat: row.latitude, lng: row.longitude })
+          }
+        }}
+      />
     </div>
   )
 }
