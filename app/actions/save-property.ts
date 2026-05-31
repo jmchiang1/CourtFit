@@ -65,8 +65,13 @@ export async function saveProperty(input: SaveInput) {
       }
     }
   }
+  // TEMP DEBUG — remove after diagnosing missing demographics.
+  const dbg = (m: string) => console.warn(`[save-debug] ${m}`)
+  dbg(`SAVE id=${input.id ?? 'new'} address=${JSON.stringify(input.address)} needsGeocode=${needsGeocode} coordsUnchanged=${coordsUnchanged} CENSUS_KEY=${!!process.env.CENSUS_API_KEY} GMAPS_KEY=${!!(process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY)}`)
+
   if (needsGeocode) {
     const point = await geocodeAddress(input.address)
+    dbg(`geocode → ${point ? `${point.lat},${point.lng}` : 'NULL'}`)
     if (point) {
       geo = { latitude: point.lat, longitude: point.lng, geocoded_at: new Date().toISOString() }
     }
@@ -75,9 +80,12 @@ export async function saveProperty(input: SaveInput) {
   // Fetch demographics whenever we have fresh coords or never had them cached.
   if (geo.latitude != null && (!coordsUnchanged || !demo.demographics_json)) {
     const demographics = await fetchDemographics(geo.latitude, geo.longitude)
+    dbg(`fetchDemographics(${geo.latitude},${geo.longitude}) → ${demographics ? `pop=${demographics.totalPopulation} tracts=${demographics.tractCount}` : 'NULL'}`)
     if (demographics) {
       demo = { demographics_json: demographics, demographics_at: new Date().toISOString() }
     }
+  } else {
+    dbg(`SKIP demographics (lat=${geo.latitude} coordsUnchanged=${coordsUnchanged} hasDemo=${!!demo.demographics_json})`)
   }
 
   const row = {
@@ -101,6 +109,8 @@ export async function saveProperty(input: SaveInput) {
   const result = input.id
     ? await sb.from('properties').update(row).eq('id', input.id).select().single()
     : await sb.from('properties').insert(row).select().single()
+
+  dbg(`DB ${input.id ? 'update' : 'insert'} → error=${result.error?.message ?? 'none'} wroteDemo=${!!row.demographics_json}`)
 
   if (result.error) return { error: result.error.message }
   revalidatePath('/')
