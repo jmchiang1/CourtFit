@@ -33,7 +33,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getIsochrone } from '@/app/actions/isochrone'
-import { MapPin, Eye, ExternalLink, Search, Plus, Trash2, Clock, Circle, ChevronDown } from 'lucide-react'
+import { getDemandTracts, type DemandTract } from '@/app/actions/demand-tracts'
+import { MapPin, Eye, ExternalLink, Search, Plus, Trash2, Clock, Circle, ChevronDown, Flame } from 'lucide-react'
 import type { Rating } from '@/types/analysis'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
 import {
@@ -243,6 +244,53 @@ function PolygonRing({ ring }: { ring: number[][] | null }) {
   return null
 }
 
+// Warm ramp for the demand "heat bubbles", coolest → hottest.
+const HEAT_RAMP = ['#fbbf24', '#fb923c', '#f97316', '#ef4444']
+
+/**
+ * Demand heatmap overlay (greenfield finder). Renders baked Census-tract demand
+ * as translucent warm circles sized/colored by weight; overlap reads as heat.
+ * Uses core google.maps.Circle (not the deprecated visualization HeatmapLayer,
+ * which newer Maps keys no longer provision).
+ */
+function DemandHeatmap({ points }: { points: { lat: number; lng: number; weight: number }[] | null }) {
+  const map = useMap()
+  const circlesRef = useRef<google.maps.Circle[]>([])
+
+  useEffect(() => {
+    circlesRef.current.forEach((c) => c.setMap(null))
+    circlesRef.current = []
+    if (!map || !points || points.length === 0) return
+
+    const max = Math.max(...points.map((p) => p.weight))
+    if (max <= 0) return
+
+    // Cap to the strongest tracts for performance; overlap fills the field.
+    const top = [...points].sort((a, b) => b.weight - a.weight).slice(0, 900)
+    for (const p of top) {
+      const norm = p.weight / max // 0–1
+      const color = HEAT_RAMP[Math.min(HEAT_RAMP.length - 1, Math.floor(norm * HEAT_RAMP.length))]
+      circlesRef.current.push(
+        new google.maps.Circle({
+          map,
+          center: { lat: p.lat, lng: p.lng },
+          radius: 300 + Math.sqrt(norm) * 1500, // meters
+          strokeWeight: 0,
+          fillColor: color,
+          fillOpacity: 0.18 + norm * 0.22,
+          clickable: false,
+        }),
+      )
+    }
+    return () => {
+      circlesRef.current.forEach((c) => c.setMap(null))
+      circlesRef.current = []
+    }
+  }, [map, points])
+
+  return null
+}
+
 // Fit-label colors tuned for the white InfoWindow (dark text on light chips).
 const FIT_PILL: Record<FitLabel, string> = {
   Strong: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
@@ -325,6 +373,10 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
   const [radiusMiles, setRadiusMiles] = useState(DEFAULT_RADIUS_MILES)
   const [driveMinutes, setDriveMinutes] = useState(15)
   const [mapMode, setMapMode] = useState<'radius' | 'drive'>('drive')
+  // Demand heatmap (greenfield finder) — baked tract data loaded on first enable.
+  const [heatmapOn, setHeatmapOn] = useState(false)
+  const [heatmapSport, setHeatmapSport] = useState<Sport>('Badminton')
+  const [tracts, setTracts] = useState<DemandTract[] | null>(null)
   // Live drive-time overlay: ring fetched for the selected marker at driveMinutes.
   const [liveRing, setLiveRing] = useState<number[][] | null>(null)
   const [isoLoading, setIsoLoading] = useState(false)
@@ -438,6 +490,24 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     // User-added first so they sort to the top of the reference list.
     return [...added, ...builtins]
   }, [custom])
+
+  // Lazy-load the baked tract demand the first time the heatmap is switched on.
+  useEffect(() => {
+    if (!heatmapOn || tracts) return
+    getDemandTracts().then((d) => setTracts(d.tracts))
+  }, [heatmapOn, tracts])
+
+  // Weight each tract by the selected sport's demand pool.
+  const heatmapPoints = useMemo(() => {
+    if (!heatmapOn || !tracts) return null
+    const out: { lat: number; lng: number; weight: number }[] = []
+    for (const [lat, lng, target, pop] of tracts) {
+      const weight = heatmapSport === 'Badminton' ? target : pop
+      if (weight <= 0) continue
+      out.push({ lat, lng, weight })
+    }
+    return out
+  }, [heatmapOn, tracts, heatmapSport])
 
   // Regions that actually appear (across both layers) drive the region dropdown.
   const presentRegions = useMemo(() => {
@@ -571,62 +641,28 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
               Competitors ({allCompetitors.length})
             </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="reference-color-picker gap-1.5 px-2"
-                    aria-label="Reference facility dot color"
-                  >
-                    <span
-                      className="size-3 rounded-full ring-1 ring-black/40"
-                      style={{ background: referenceColor }}
-                    />
-                    <ChevronDown className="size-3.5" />
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="start" className="w-auto p-2">
-                <div className="grid grid-cols-4 gap-1.5">
-                  {REFERENCE_PRESETS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => updateReferenceColor(c)}
-                      aria-label={`Use ${c}`}
-                      className={`size-6 rounded-full ring-1 transition ${
-                        referenceColor.toLowerCase() === c.toLowerCase()
-                          ? 'ring-2 ring-primary'
-                          : 'ring-black/30 hover:ring-foreground/50'
-                      }`}
-                      style={{ background: c }}
-                    />
-                  ))}
-                </div>
-                <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
-                  <label htmlFor="ref-color-custom" className="text-xs text-muted-foreground">
-                    Custom
-                  </label>
-                  <input
-                    id="ref-color-custom"
-                    type="color"
-                    value={referenceColor}
-                    onChange={(e) => updateReferenceColor(e.target.value)}
-                    className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => updateReferenceColor(COMPETITOR_COLOR)}
-                    className="ml-auto text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              type="button"
+              size="sm"
+              variant={heatmapOn ? 'default' : 'outline'}
+              onClick={() => setHeatmapOn((v) => !v)}
+              className="map-heatmap-toggle gap-1.5"
+              title="Demand heatmap — population by area across NYC & Nassau"
+            >
+              <Flame className="size-3.5" />
+              Demand
+            </Button>
+            {heatmapOn && (
+              <Select value={heatmapSport} onValueChange={(v) => setHeatmapSport(v as Sport)}>
+                <SelectTrigger size="sm" className="w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Badminton">Badminton</SelectItem>
+                  <SelectItem value="Pickleball">Pickleball</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="map-search relative ml-auto">
@@ -820,6 +856,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
               onClick={() => setSelected(null)}
             >
               <FitBounds positions={positions} />
+              <DemandHeatmap points={heatmapPoints} />
               <PanTo target={focus} />
               {mapMode === 'drive' ? (
                 <PolygonRing ring={liveRing} />
@@ -963,7 +1000,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                 className="inline-block size-2.5 rounded-full ring-1 ring-black/40"
                 style={{ background: referenceColor }}
               />
-              <span className="text-muted-foreground">Reference facilities</span>
+              <span className="text-muted-foreground">Reference Facilities</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="inline-block size-2.5 rounded-full border border-rose-500 bg-rose-500/10" />
@@ -980,23 +1017,80 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
         <aside className="reference-list hidden lg:flex w-72 shrink-0 flex-col h-[72vh] rounded-xl ring-1 ring-border bg-card">
           <div className="reference-list-header flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Reference facilities</p>
+              <p className="text-sm font-medium">Reference Facilities</p>
               <p className="text-xs text-muted-foreground">
                 {competitors.length} of {allCompetitors.length} shown
               </p>
             </div>
-            {!demo && (
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="outline"
-                className="map-add-facility shrink-0"
-                aria-label="Add reference facility"
-                onClick={() => setAddOpen(true)}
-              >
-                <Plus className="size-4" />
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="outline"
+                      className="reference-color-picker"
+                      aria-label="Reference facility dot color"
+                    >
+                      <span
+                        className="size-3 rounded-full ring-1 ring-black/40"
+                        style={{ background: referenceColor }}
+                      />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="w-auto p-2">
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {REFERENCE_PRESETS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => updateReferenceColor(c)}
+                        aria-label={`Use ${c}`}
+                        className={`size-6 rounded-full ring-1 transition ${
+                          referenceColor.toLowerCase() === c.toLowerCase()
+                            ? 'ring-2 ring-primary'
+                            : 'ring-black/30 hover:ring-foreground/50'
+                        }`}
+                        style={{ background: c }}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 border-t border-border pt-2">
+                    <label htmlFor="ref-color-custom" className="text-xs text-muted-foreground">
+                      Custom
+                    </label>
+                    <input
+                      id="ref-color-custom"
+                      type="color"
+                      value={referenceColor}
+                      onChange={(e) => updateReferenceColor(e.target.value)}
+                      className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateReferenceColor(COMPETITOR_COLOR)}
+                      className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {!demo && (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  className="map-add-facility"
+                  aria-label="Add reference facility"
+                  onClick={() => setAddOpen(true)}
+                >
+                  <Plus className="size-4" />
+                </Button>
+              )}
+            </div>
           </div>
           <div className="reference-list-items flex-1 overflow-y-auto divide-y divide-border">
             {competitors.length === 0 ? (

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, List, Map as MapIcon } from 'lucide-react'
+import { Plus, List, Map as MapIcon, Trophy } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DashboardTable } from '@/components/DashboardTable'
 import { PropertiesMap } from '@/components/PropertiesMap'
+import { ComparePanel } from '@/components/ComparePanel'
 import { EditorSheet } from '@/components/EditorSheet'
 import { VerdictModal } from '@/components/VerdictModal'
 import { BookmarkletHelper } from '@/components/BookmarkletHelper'
@@ -14,11 +15,13 @@ import { deleteProperty } from '@/app/actions/delete-property'
 import { geocodeMissing } from '@/app/actions/geocode-missing'
 import { backfillDemographics } from '@/app/actions/backfill-demographics'
 import { backfillConditions } from '@/app/actions/backfill-conditions'
+import { listReferenceFacilities } from '@/app/actions/reference-facilities'
+import { buildCompetitorSites } from '@/lib/competition'
 import { DEMO_PROPERTIES } from '@/lib/demo-data'
-import type { PropertyRow } from '@/lib/supabase/types'
+import type { PropertyRow, ReferenceFacilityRow } from '@/lib/supabase/types'
 
 type EditorState = { row?: PropertyRow; importedText?: string } | null
-type View = 'list' | 'map'
+type View = 'list' | 'map' | 'compare'
 
 /**
  * The signed-in dashboard. In `demo` mode (a visitor who chose "Try without an
@@ -27,6 +30,9 @@ type View = 'list' | 'map'
  */
 export function AppHome({ demo = false }: { demo?: boolean }) {
   const [rows, setRows] = useState<PropertyRow[]>(demo ? DEMO_PROPERTIES : [])
+  // Competitor facilities (built-in + the user's added ones) for competition /
+  // whitespace scoring across the verdict, comparison, and map views.
+  const [facilities, setFacilities] = useState<ReferenceFacilityRow[]>([])
   const [editor, setEditor] = useState<EditorState>(null)
   const [viewing, setViewing] = useState<PropertyRow | null>(null)
   const [view, setView] = useState<View>('list')
@@ -53,6 +59,15 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
   useEffect(() => {
     if (!demo) reload()
   }, [demo, reload])
+
+  // Load the user's added competitor facilities once; combined with the built-in
+  // curated list, these drive the competition / whitespace scoring.
+  useEffect(() => {
+    if (demo) return
+    listReferenceFacilities().then(setFacilities)
+  }, [demo])
+
+  const competitorSites = useMemo(() => buildCompetitorSites(facilities), [facilities])
 
   // Bookmarklet hash → open editor with imported text.
   // The EditorSheet's ListingInput reads the hash itself when it mounts and
@@ -180,6 +195,10 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
                 <MapIcon className="size-4" />
                 Map
               </TabsTrigger>
+              <TabsTrigger value="compare" className="gap-1.5">
+                <Trophy className="size-4" />
+                Compare
+              </TabsTrigger>
             </TabsList>
           </Tabs>
           <Button onClick={() => setEditor({ row: undefined })} className="gap-1.5">
@@ -189,7 +208,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
         </div>
       </div>
 
-      {view === 'list' ? (
+      {view === 'list' && (
         <DashboardTable
           rows={rows}
           onView={(row) => setViewing(row)}
@@ -199,7 +218,8 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           }}
           onDelete={handleDelete}
         />
-      ) : (
+      )}
+      {view === 'map' && (
         <PropertiesMap
           rows={rows}
           onView={(row) => setViewing(row)}
@@ -207,9 +227,13 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           demo={demo}
         />
       )}
+      {view === 'compare' && (
+        <ComparePanel rows={rows} sites={competitorSites} onView={(row) => setViewing(row)} />
+      )}
 
       <VerdictModal
         property={viewing}
+        sites={competitorSites}
         onClose={() => setViewing(null)}
         onEdit={(row) => {
           setViewing(null)

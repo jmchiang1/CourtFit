@@ -7,7 +7,7 @@ import type { ComplianceItem, ConditionAssessment } from '@/types/condition'
 // Vision + reasoning: Sonnet judges condition far better than Haiku, and the
 // cost is acceptable for a once-per-save call.
 const MODEL = 'claude-sonnet-4-6'
-const MAX_IMAGES = 6
+const MAX_IMAGES = 3
 
 // The canonical NYC / Nassau County due-diligence checklist. The AI fills in
 // status + detail per key; we merge against this list so the panel always shows

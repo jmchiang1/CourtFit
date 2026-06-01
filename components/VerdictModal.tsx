@@ -10,7 +10,9 @@ import { RiskFlagsPanel } from '@/components/Dashboard/RiskFlagsPanel'
 import { SummaryPanel } from '@/components/Dashboard/SummaryPanel'
 import { StartupCostBreakdown } from '@/components/Dashboard/StartupCostBreakdown'
 import { ConditionPanel } from '@/components/Dashboard/ConditionPanel'
+import { CompetitionPanel } from '@/components/Dashboard/CompetitionPanel'
 import { DemographicsPanel } from '@/components/Dashboard/DemographicsPanel'
+import type { CompetitorSite } from '@/lib/competition'
 import { Pencil, Trash2, MapPin, X, ExternalLink } from 'lucide-react'
 import { useMemo } from 'react'
 import { PhotoStrip } from './PhotoStrip'
@@ -20,12 +22,14 @@ import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
 
 interface Props {
   property: PropertyRow | null
+  /** Competitor facilities (built-in + user-added) for the competition panel. */
+  sites?: CompetitorSite[]
   onClose: () => void
   onEdit: (row: PropertyRow) => void
   onDelete: (id: string) => void
 }
 
-export function VerdictModal({ property, onClose, onEdit, onDelete }: Props) {
+export function VerdictModal({ property, sites = [], onClose, onEdit, onDelete }: Props) {
   // Recompute the analysis from the persisted listing + assumptions so the
   // verdict reflects the latest calculator logic, not the row's stale snapshot.
   const result = useMemo(() => {
@@ -132,6 +136,13 @@ export function VerdictModal({ property, onClose, onEdit, onDelete }: Props) {
             <VerdictHero result={result} address={property.address} />
             <KpiCards result={result} />
             <DemographicsPanel demographics={property.demographics_json} />
+            <CompetitionPanel
+              lat={property.latitude}
+              lng={property.longitude}
+              demographics={property.demographics_json}
+              assumptions={{ ...DEFAULT_ASSUMPTIONS, ...property.assumptions_json }}
+              sites={sites}
+            />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">
               <div className="min-w-0">
                 <CourtFitPanel

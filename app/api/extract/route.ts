@@ -50,6 +50,21 @@ interface ExtractResult {
   error?: string
 }
 
+/**
+ * Regex-first cost gate. The regex parser is free; the Claude call costs money
+ * on every paste. If regex already pulled the financially material fields —
+ * size and rent, the two numbers the deal math actually needs — the listing is
+ * clean enough that the AI pass would add little. Skip it.
+ *
+ * When either is missing (e.g. "Rent: Upon Request", odd formatting, prose
+ * descriptions), regex isn't enough and we fall through to Claude.
+ */
+function regexIsConfident(listing: ExtractedListing): boolean {
+  const hasSize = listing.totalSqft != null || listing.warehouseSqft != null
+  const hasRent = listing.rentPerSqftYr != null
+  return hasSize && hasRent
+}
+
 async function extractWithAnthropic(rawText: string, apiKey: string): Promise<ExtractedListing> {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -109,6 +124,14 @@ export async function POST(request: Request): Promise<Response> {
 
   if (!process.env.ANTHROPIC_API_KEY) {
     const result: ExtractResult = { listing: parseListingWithRegex(text), source: 'regex' }
+    return Response.json(result)
+  }
+
+  // Regex-first: try the free parser before spending an API call. If it already
+  // captured size + rent, return it and skip Claude entirely.
+  const regexListing = parseListingWithRegex(text)
+  if (regexIsConfident(regexListing)) {
+    const result: ExtractResult = { listing: regexListing, source: 'regex' }
     return Response.json(result)
   }
 
