@@ -224,9 +224,11 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
         onSaved={() => reload()}
       />
 
-      <div className="mt-6 flex justify-start">
-        <BookmarkletHelper />
-      </div>
+      {view === 'list' && (
+        <div className="mt-6 flex justify-start">
+          <BookmarkletHelper />
+        </div>
+      )}
     </main>
   )
 }

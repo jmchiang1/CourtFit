@@ -503,7 +503,10 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     let active = true
     setIsoLoading(true)
     getIsochrone(selectedCenter.lat, selectedCenter.lng, driveMinutes).then((ring) => {
-      isoCache.current[key] = ring
+      // Only cache successful rings — caching a null (e.g. a transient Mapbox
+      // failure, or the token not yet loaded) would permanently disable the
+      // overlay for this marker until a page reload. Let failures retry.
+      if (ring) isoCache.current[key] = ring
       if (!active) return
       setLiveRing(ring)
       setIsoLoading(false)
