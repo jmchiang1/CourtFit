@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getIsochrone } from '@/app/actions/isochrone'
-import { getDemandTracts, type DemandTract } from '@/app/actions/demand-tracts'
+import { loadDemandTracts, type DemandTract } from '@/lib/demand-tracts-data'
 import { MapPin, Eye, ExternalLink, Search, Plus, Trash2, Clock, Circle, ChevronDown, Flame } from 'lucide-react'
 import type { Rating } from '@/types/analysis'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
@@ -121,7 +121,6 @@ interface PropertyPoint {
   region: Region | null
   title: string
   subtitle: string | null
-  image: string | null
   row: PropertyRow
 }
 
@@ -247,46 +246,159 @@ function PolygonRing({ ring }: { ring: number[][] | null }) {
 // Warm ramp for the demand "heat bubbles", coolest → hottest.
 const HEAT_RAMP = ['#fbbf24', '#fb923c', '#f97316', '#ef4444']
 
+type HeatPoint = { lat: number; lng: number; weight: number }
+
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+// One soft radial sprite per ramp color, built once and stamped (scaled) per
+// tract. Stamping a cached bitmap is ~free vs. instantiating a map overlay.
+function buildHeatSprites(size = 128): HTMLCanvasElement[] {
+  return HEAT_RAMP.map((hex) => {
+    const [r, g, b] = hexToRgb(hex)
+    const c = document.createElement('canvas')
+    c.width = c.height = size
+    const ctx = c.getContext('2d')!
+    const grad = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+    grad.addColorStop(0, `rgba(${r},${g},${b},1)`)
+    grad.addColorStop(0.55, `rgba(${r},${g},${b},0.5)`)
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`)
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, size, size)
+    return c
+  })
+}
+
 /**
  * Demand heatmap overlay (greenfield finder). Renders baked Census-tract demand
- * as translucent warm circles sized/colored by weight; overlap reads as heat.
- * Uses core google.maps.Circle (not the deprecated visualization HeatmapLayer,
- * which newer Maps keys no longer provision).
+ * onto a SINGLE <canvas> via a custom OverlayView: every tract is one cached
+ * radial-sprite stamp (sized/colored by weight; overlap reads as heat), redrawn
+ * at most once per animation frame on pan/zoom.
+ *
+ * Replaces the previous approach of attaching ~900 google.maps.Circle overlays,
+ * which blocked the main thread on every toggle/sport-change and repainted all
+ * 900 vector shapes on each pan. (We avoid the deprecated visualization
+ * HeatmapLayer, which newer Maps keys no longer provision.)
  */
-function DemandHeatmap({ points }: { points: { lat: number; lng: number; weight: number }[] | null }) {
+function DemandHeatmap({ points }: { points: HeatPoint[] | null }) {
   const map = useMap()
-  const circlesRef = useRef<google.maps.Circle[]>([])
+  // Latest data, read by the overlay's render loop without re-creating it.
+  const dataRef = useRef<{ points: HeatPoint[] | null; max: number }>({ points: null, max: 0 })
+  const overlayRef = useRef<{ schedule: () => void; destroy: () => void } | null>(null)
 
+  // Create the overlay once the map (and the google.maps global) is ready.
   useEffect(() => {
-    circlesRef.current.forEach((c) => c.setMap(null))
-    circlesRef.current = []
-    if (!map || !points || points.length === 0) return
+    if (!map) return
+    const m = map // non-null capture for the overlay's render closure
 
-    const max = Math.max(...points.map((p) => p.weight))
-    if (max <= 0) return
+    const sprites = buildHeatSprites()
 
-    // Cap to the strongest tracts for performance; overlap fills the field.
-    const top = [...points].sort((a, b) => b.weight - a.weight).slice(0, 900)
-    for (const p of top) {
-      const norm = p.weight / max // 0–1
-      const color = HEAT_RAMP[Math.min(HEAT_RAMP.length - 1, Math.floor(norm * HEAT_RAMP.length))]
-      circlesRef.current.push(
-        new google.maps.Circle({
-          map,
-          center: { lat: p.lat, lng: p.lng },
-          radius: 300 + Math.sqrt(norm) * 1500, // meters
-          strokeWeight: 0,
-          fillColor: color,
-          fillOpacity: 0.18 + norm * 0.22,
-          clickable: false,
-        }),
-      )
+    class HeatOverlay extends google.maps.OverlayView {
+      canvas: HTMLCanvasElement | null = null
+      raf = 0
+
+      onAdd() {
+        const c = document.createElement('canvas')
+        c.style.position = 'absolute'
+        c.style.pointerEvents = 'none'
+        c.style.willChange = 'left, top'
+        this.canvas = c
+        this.getPanes()!.overlayLayer.appendChild(c)
+      }
+
+      onRemove() {
+        if (this.raf) cancelAnimationFrame(this.raf)
+        this.raf = 0
+        this.canvas?.remove()
+        this.canvas = null
+      }
+
+      // Maps calls draw() on every viewport change; coalesce to one render/frame.
+      draw() { this.schedule() }
+
+      schedule() {
+        if (this.raf) return
+        this.raf = requestAnimationFrame(() => { this.raf = 0; this.render() })
+      }
+
+      render() {
+        const canvas = this.canvas
+        const proj = this.getProjection()
+        const { points: pts, max } = dataRef.current
+        if (!canvas) return
+        const bounds = m.getBounds()
+        if (!proj || !bounds || !pts || pts.length === 0 || max <= 0) {
+          canvas.style.display = 'none'
+          return
+        }
+
+        const ne = proj.fromLatLngToDivPixel(bounds.getNorthEast())
+        const sw = proj.fromLatLngToDivPixel(bounds.getSouthWest())
+        if (!ne || !sw) return
+        const left = Math.min(ne.x, sw.x)
+        const top = Math.min(ne.y, sw.y)
+        const w = Math.abs(ne.x - sw.x)
+        const h = Math.abs(ne.y - sw.y)
+        if (w <= 0 || h <= 0) return
+
+        const dpr = Math.min(window.devicePixelRatio || 1, 2)
+        canvas.style.display = ''
+        canvas.style.left = `${left}px`
+        canvas.style.top = `${top}px`
+        canvas.style.width = `${w}px`
+        canvas.style.height = `${h}px`
+        canvas.width = Math.round(w * dpr)
+        canvas.height = Math.round(h * dpr)
+        const ctx = canvas.getContext('2d')!
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        ctx.clearRect(0, 0, w, h)
+
+        // Cull to the visible bounds (+margin), then stamp survivors.
+        const latPad = (bounds.getNorthEast().lat() - bounds.getSouthWest().lat()) * 0.2
+        const lngPad = (bounds.getNorthEast().lng() - bounds.getSouthWest().lng()) * 0.2
+        const nLat = bounds.getNorthEast().lat() + latPad
+        const sLat = bounds.getSouthWest().lat() - latPad
+        const eLng = bounds.getNorthEast().lng() + lngPad
+        const wLng = bounds.getSouthWest().lng() - lngPad
+        const zoom = m.getZoom() ?? 11
+        const scale = Math.pow(2, zoom)
+
+        for (const p of pts) {
+          if (p.lat > nLat || p.lat < sLat || p.lng > eLng || p.lng < wLng) continue
+          const px = proj.fromLatLngToDivPixel(new google.maps.LatLng(p.lat, p.lng))
+          if (!px) continue
+          const norm = p.weight / max // 0–1
+          const radiusM = 300 + Math.sqrt(norm) * 1500
+          const mpp = (156543.03392 * Math.cos((p.lat * Math.PI) / 180)) / scale
+          const r = radiusM / mpp
+          const sprite = sprites[Math.min(sprites.length - 1, Math.floor(norm * sprites.length))]
+          ctx.globalAlpha = 0.18 + norm * 0.22
+          ctx.drawImage(sprite, px.x - left - r, px.y - top - r, r * 2, r * 2)
+        }
+        ctx.globalAlpha = 1
+      }
     }
+
+    const overlay = new HeatOverlay()
+    overlay.setMap(map)
+    overlayRef.current = { schedule: () => overlay.schedule(), destroy: () => overlay.setMap(null) }
+
     return () => {
-      circlesRef.current.forEach((c) => c.setMap(null))
-      circlesRef.current = []
+      overlayRef.current = null
+      overlay.setMap(null)
     }
-  }, [map, points])
+  }, [map])
+
+  // Push new data (initial load / sport toggle / off) and request a redraw —
+  // no overlay teardown, just a restamp on the next frame.
+  useEffect(() => {
+    let max = 0
+    if (points) for (const p of points) if (p.weight > max) max = p.weight
+    dataRef.current = { points, max }
+    overlayRef.current?.schedule()
+  }, [points])
 
   return null
 }
@@ -455,7 +567,6 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
           region: detectRegion(r.address),
           title,
           subtitle,
-          image: (r.listing_json.imageUrls ?? [])[0] ?? null,
           row: r,
         }
       })
@@ -491,11 +602,14 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     return [...added, ...builtins]
   }, [custom])
 
-  // Lazy-load the baked tract demand the first time the heatmap is switched on.
+  // Prefetch the baked tract demand as soon as the map mounts (cached chunk, no
+  // server hop) so the demand toggle has zero wait — the data is already in
+  // memory by the time the user flips it on.
   useEffect(() => {
-    if (!heatmapOn || tracts) return
-    getDemandTracts().then((d) => setTracts(d.tracts))
-  }, [heatmapOn, tracts])
+    let alive = true
+    loadDemandTracts().then((d) => { if (alive) setTracts(d.tracts) })
+    return () => { alive = false }
+  }, [])
 
   // Weight each tract by the selected sport's demand pool.
   const heatmapPoints = useMemo(() => {
@@ -903,18 +1017,6 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                   pixelOffset={[0, -36]}
                 >
                   <div className="site-infowindow min-w-44 max-w-64 space-y-1.5 p-0.5 text-neutral-900">
-                    {selectedProperty.image && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={selectedProperty.image}
-                        alt={selectedProperty.title}
-                        className="h-28 w-full rounded-md object-cover ring-1 ring-black/10"
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                    )}
                     <p className="font-medium leading-snug text-black">{selectedProperty.title}</p>
                     {selectedProperty.subtitle && (
                       <p className="text-xs text-neutral-600 leading-snug">
