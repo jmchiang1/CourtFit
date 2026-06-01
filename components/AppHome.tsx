@@ -13,6 +13,7 @@ import { listProperties } from '@/app/actions/list-properties'
 import { deleteProperty } from '@/app/actions/delete-property'
 import { geocodeMissing } from '@/app/actions/geocode-missing'
 import { backfillDemographics } from '@/app/actions/backfill-demographics'
+import { backfillConditions } from '@/app/actions/backfill-conditions'
 import { DEMO_PROPERTIES } from '@/lib/demo-data'
 import type { PropertyRow } from '@/lib/supabase/types'
 
@@ -34,6 +35,8 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
   const backfilledRef = useRef(false)
   // Same, for the automatic 5-mile demographics backfill.
   const demographicsRef = useRef(false)
+  // Same, for the automatic AI condition-assessment backfill.
+  const conditionRef = useRef(false)
 
   const reload = useCallback(() => {
     if (demo) {
@@ -116,6 +119,27 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
       }
     })
   }, [demo, needsDemographics])
+
+  // Automatically assess condition (renovation scope + code checklist) for any
+  // property that doesn't have one yet. Each is a vision call, so process small
+  // batches and refresh between them so panels fill in progressively; stop if a
+  // batch makes no progress (e.g., assessment unavailable).
+  const needsCondition = useMemo(() => rows.some((r) => r.condition_json == null), [rows])
+
+  useEffect(() => {
+    if (demo || conditionRef.current || !needsCondition) return
+    conditionRef.current = true
+    startReload(async () => {
+      for (let i = 0; i < 25; i++) {
+        const { updated, remaining } = await backfillConditions(3)
+        if (updated > 0) {
+          const list = await listProperties()
+          setRows(list)
+        }
+        if (remaining === 0 || updated === 0) break
+      }
+    })
+  }, [demo, needsCondition])
 
   const handleDelete = (id: string) => {
     if (demo) {
