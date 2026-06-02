@@ -33,8 +33,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { getIsochrone } from '@/app/actions/isochrone'
-import { loadDemandTracts, type DemandTract } from '@/lib/demand-tracts-data'
-import { MapPin, Eye, ExternalLink, Search, Plus, Trash2, Clock, Circle, ChevronDown, Flame } from 'lucide-react'
+import {
+  loadDemandTracts,
+  ETHNICITY_OPTIONS,
+  INCOME_MAX,
+  TRACT,
+  type DemandTract,
+  type HeatEthnicity,
+} from '@/lib/demand-tracts-data'
+import { MapPin, Eye, ExternalLink, Search, Plus, Trash2, Pencil, Clock, Circle, ChevronDown, Flame } from 'lucide-react'
 import type { Rating } from '@/types/analysis'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
 import {
@@ -487,7 +494,9 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
   const [mapMode, setMapMode] = useState<'radius' | 'drive'>('drive')
   // Demand heatmap (greenfield finder) — baked tract data loaded on first enable.
   const [heatmapOn, setHeatmapOn] = useState(false)
-  const [heatmapSport, setHeatmapSport] = useState<Sport>('Badminton')
+  const [heatmapEth, setHeatmapEth] = useState<HeatEthnicity>('Total')
+  // Median-income band (dollars) the heatmap is filtered to. Full range by default.
+  const [incomeRange, setIncomeRange] = useState<[number, number]>([0, INCOME_MAX])
   const [tracts, setTracts] = useState<DemandTract[] | null>(null)
   // Live drive-time overlay: ring fetched for the selected marker at driveMinutes.
   const [liveRing, setLiveRing] = useState<number[][] | null>(null)
@@ -525,6 +534,20 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
   // User-added reference facilities (signed-in only).
   const [custom, setCustom] = useState<ReferenceFacilityRow[]>([])
   const [addOpen, setAddOpen] = useState(false)
+  // When set, the dialog edits this facility instead of adding a new one.
+  const [editingFacility, setEditingFacility] = useState<ReferenceFacilityRow | null>(null)
+
+  // Open the dialog in add or edit mode.
+  const openAddFacility = () => {
+    setEditingFacility(null)
+    setAddOpen(true)
+  }
+  const openEditFacility = (id: string) => {
+    const row = custom.find((r) => r.id === id)
+    if (!row) return
+    setEditingFacility(row)
+    setAddOpen(true)
+  }
 
   useEffect(() => {
     if (demo) return
@@ -611,17 +634,24 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     return () => { alive = false }
   }, [])
 
-  // Weight each tract by the selected sport's demand pool.
+  // Weight each tract by the selected ethnicity pool, filtered to the chosen
+  // median-income band. A full-range band keeps every tract (incl. unreported).
   const heatmapPoints = useMemo(() => {
     if (!heatmapOn || !tracts) return null
+    const ethIdx = ETHNICITY_OPTIONS.find((o) => o.label === heatmapEth)?.index ?? TRACT.total
+    const [lo, hi] = incomeRange
+    const filtering = lo > 0 || hi < INCOME_MAX
     const out: { lat: number; lng: number; weight: number }[] = []
-    for (const [lat, lng, target, pop] of tracts) {
-      const weight = heatmapSport === 'Badminton' ? target : pop
+    for (const t of tracts) {
+      const income = t[TRACT.income]
+      // Tracts with no reported income (0) only drop out once a band is set.
+      if (filtering && (income <= 0 || income < lo || income > hi)) continue
+      const weight = t[ethIdx]
       if (weight <= 0) continue
-      out.push({ lat, lng, weight })
+      out.push({ lat: t[TRACT.lat], lng: t[TRACT.lng], weight })
     }
     return out
-  }, [heatmapOn, tracts, heatmapSport])
+  }, [heatmapOn, tracts, heatmapEth, incomeRange])
 
   // Regions that actually appear (across both layers) drive the region dropdown.
   const presentRegions = useMemo(() => {
@@ -761,21 +791,64 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
               variant={heatmapOn ? 'default' : 'outline'}
               onClick={() => setHeatmapOn((v) => !v)}
               className="map-heatmap-toggle gap-1.5"
-              title="Demand heatmap — population by area across NYC & Nassau"
+              title="Demand heatmap — population by race/ethnicity & income across the NYC metro"
             >
               <Flame className="size-3.5" />
               Demand
             </Button>
             {heatmapOn && (
-              <Select value={heatmapSport} onValueChange={(v) => setHeatmapSport(v as Sport)}>
-                <SelectTrigger size="sm" className="w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Badminton">Badminton</SelectItem>
-                  <SelectItem value="Pickleball">Pickleball</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={heatmapEth} onValueChange={(v) => setHeatmapEth(v as HeatEthnicity)}>
+                  <SelectTrigger size="sm" className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ETHNICITY_OPTIONS.map((o) => (
+                      <SelectItem key={o.label} value={o.label}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div
+                  className="flex items-center gap-1.5"
+                  title="Filter tracts by median household income"
+                >
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Income
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={INCOME_MAX}
+                    step={5000}
+                    value={incomeRange[0]}
+                    onChange={(e) => {
+                      const v = Number(e.target.value)
+                      setIncomeRange(([, hi]) => [Math.min(v, hi), hi])
+                    }}
+                    className="map-income-range h-1 w-16 cursor-pointer"
+                    aria-label="Minimum median household income"
+                  />
+                  <input
+                    type="range"
+                    min={0}
+                    max={INCOME_MAX}
+                    step={5000}
+                    value={incomeRange[1]}
+                    onChange={(e) => {
+                      const v = Number(e.target.value)
+                      setIncomeRange(([lo]) => [lo, Math.max(v, lo)])
+                    }}
+                    className="map-income-range h-1 w-16 cursor-pointer"
+                    aria-label="Maximum median household income"
+                  />
+                  <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
+                    ${Math.round(incomeRange[0] / 1000)}k–${Math.round(incomeRange[1] / 1000)}k
+                    {incomeRange[1] >= INCOME_MAX ? '+' : ''}
+                  </span>
+                </div>
+              </div>
             )}
           </div>
 
@@ -1075,14 +1148,24 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                         Open in Google Maps
                       </a>
                       {selectedCompetitor.custom && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteFacility(selectedCompetitor.custom!.id)}
-                          className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700"
-                        >
-                          <Trash2 className="size-3.5" />
-                          Remove
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => openEditFacility(selectedCompetitor.custom!.id)}
+                            className="inline-flex items-center gap-1 text-xs text-neutral-600 hover:text-black"
+                          >
+                            <Pencil className="size-3.5" />
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFacility(selectedCompetitor.custom!.id)}
+                            className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700"
+                          >
+                            <Trash2 className="size-3.5" />
+                            Remove
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1187,7 +1270,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                   variant="outline"
                   className="map-add-facility"
                   aria-label="Add reference facility"
-                  onClick={() => setAddOpen(true)}
+                  onClick={openAddFacility}
                 >
                   <Plus className="size-4" />
                 </Button>
@@ -1232,14 +1315,24 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                     </div>
                   </button>
                   {c.custom && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteFacility(c.custom!.id)}
-                      aria-label={`Remove ${c.facility.name}`}
-                      className="absolute right-2 top-2 hidden rounded p-1 text-muted-foreground hover:text-rose-400 group-hover:block"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
+                    <div className="absolute right-2 top-2 hidden items-center gap-0.5 group-hover:flex">
+                      <button
+                        type="button"
+                        onClick={() => openEditFacility(c.custom!.id)}
+                        aria-label={`Edit ${c.facility.name}`}
+                        className="rounded p-1 text-muted-foreground hover:text-foreground"
+                      >
+                        <Pencil className="size-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFacility(c.custom!.id)}
+                        aria-label={`Remove ${c.facility.name}`}
+                        className="rounded p-1 text-muted-foreground hover:text-rose-400"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))
@@ -1250,9 +1343,17 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
 
       <AddFacilityDialog
         open={addOpen}
-        onOpenChange={setAddOpen}
-        onAdded={(row) => {
-          setCustom((cur) => [row, ...cur])
+        editing={editingFacility}
+        onOpenChange={(o) => {
+          setAddOpen(o)
+          if (!o) setEditingFacility(null)
+        }}
+        onSaved={(row) => {
+          setCustom((cur) =>
+            cur.some((r) => r.id === row.id)
+              ? cur.map((r) => (r.id === row.id ? row : r))
+              : [row, ...cur],
+          )
           setShowCompetitors(true)
           if (row.latitude != null && row.longitude != null) {
             setSelected({ kind: 'competitor', id: `custom-${row.id}` })
