@@ -49,6 +49,12 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
       setRows(DEMO_PROPERTIES)
       return
     }
+    // Re-arm the background backfills so a freshly saved/edited property (which
+    // is persisted without demographics/condition, then filled in afterward)
+    // gets geocoded, scored, and assessed without needing a page refresh.
+    backfilledRef.current = false
+    demographicsRef.current = false
+    conditionRef.current = false
     startReload(async () => {
       const list = await listProperties()
       setRows(list)

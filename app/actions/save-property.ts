@@ -3,8 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { geocodeAddress } from '@/lib/geocode'
-import { fetchDemographics } from '@/lib/census'
-import { assessCondition } from '@/lib/condition'
 import type { Assumptions, ExtractedListing, Rating } from '@/types/analysis'
 import type { Demographics } from '@/types/demographics'
 import type { ConditionAssessment } from '@/types/condition'
@@ -36,21 +34,23 @@ export async function saveProperty(input: SaveInput) {
     longitude: null,
     geocoded_at: null,
   }
-  // Cached 5-mile demographics travel with the coords: reuse them only when the
-  // address is unchanged, otherwise they're refetched for the new location.
+
+  // Demographics (Census) and the condition assessment (a Claude vision call) are
+  // both slow, so we deliberately DON'T block the save on them. We persist the
+  // row immediately with demographics_json / condition_json left null; the
+  // dashboard's background backfill fills them in a moment later. On an edit we
+  // keep the cached values when the address / listing are unchanged, and null
+  // them out (so the backfill refreshes them) when they change.
   let demo: { demographics_json: Demographics | null; demographics_at: string | null } = {
     demographics_json: null,
     demographics_at: null,
   }
-  // Cached condition assessment: reuse when the listing itself is unchanged so a
-  // pure label/assumptions edit doesn't trigger another vision call.
   let cond: { condition_json: ConditionAssessment | null; condition_at: string | null } = {
     condition_json: null,
     condition_at: null,
   }
-  let conditionCached = false
   let needsGeocode = !!input.address
-  let coordsUnchanged = false
+
   if (input.id) {
     const { data: existing } = await sb
       .from('properties')
@@ -60,53 +60,34 @@ export async function saveProperty(input: SaveInput) {
       .eq('id', input.id)
       .single()
     if (existing) {
-      const unchanged = existing.address === input.address && existing.latitude != null
-      if (unchanged) {
+      const addressUnchanged = existing.address === input.address && existing.latitude != null
+      if (addressUnchanged) {
         geo = {
           latitude: existing.latitude,
           longitude: existing.longitude,
           geocoded_at: existing.geocoded_at,
         }
         demo = {
-          demographics_json: existing.demographics_json,
+          demographics_json: existing.demographics_json as Demographics | null,
           demographics_at: existing.demographics_at,
         }
         needsGeocode = false
-        coordsUnchanged = true
       }
       const listingUnchanged =
         JSON.stringify(existing.listing_json) === JSON.stringify(input.listing)
-      if (listingUnchanged && existing.condition_json) {
+      if (listingUnchanged) {
         cond = {
-          condition_json: existing.condition_json as ConditionAssessment,
+          condition_json: existing.condition_json as ConditionAssessment | null,
           condition_at: existing.condition_at,
         }
-        conditionCached = true
       }
     }
   }
+
   if (needsGeocode) {
     const point = await geocodeAddress(input.address)
     if (point) {
       geo = { latitude: point.lat, longitude: point.lng, geocoded_at: new Date().toISOString() }
-    }
-  }
-
-  // Fetch demographics whenever we have fresh coords or never had them cached.
-  if (geo.latitude != null && (!coordsUnchanged || !demo.demographics_json)) {
-    const demographics = await fetchDemographics(geo.latitude, geo.longitude)
-    if (demographics) {
-      demo = { demographics_json: demographics, demographics_at: new Date().toISOString() }
-    }
-  }
-
-  // Assess condition (renovation scope + NYC/Nassau code checklist) on first
-  // save or when the listing changed. Best-effort — failure leaves the flat
-  // baseline renovation estimate in place.
-  if (!conditionCached) {
-    const condition = await assessCondition(input.listing)
-    if (condition) {
-      cond = { condition_json: condition, condition_at: new Date().toISOString() }
     }
   }
 
