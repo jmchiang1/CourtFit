@@ -22,17 +22,57 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
+import { StatusBadge } from '@/components/Dashboard/StatusBadge'
 import { fmtMoney } from '@/lib/format'
-import { ArrowUp, ArrowDown, ArrowUpDown, MoreVertical, Pencil, Trash2, Eye, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowUpDown, MoreVertical, Pencil, Trash2, Eye, MapPin, ChevronLeft, ChevronRight, SlidersHorizontal, X, Tag } from 'lucide-react'
 import { calculateAnalysis } from '@/lib/calculator'
 import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
+import {
+  PROPERTY_STATUSES,
+  STATUS_META,
+  normalizeStatus,
+  type PropertyStatus,
+} from '@/lib/property-status'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { PropertyRow } from '@/lib/supabase/types'
 import type { Rating } from '@/types/analysis'
+
+// Adjustable numeric range filters keyed to listing fields. Empty string = no
+// bound on that side.
+type RangeKey = 'sqft' | 'height' | 'rent'
+type Range = { min: string; max: string }
+const EMPTY_RANGES: Record<RangeKey, Range> = {
+  sqft: { min: '', max: '' },
+  height: { min: '', max: '' },
+  rent: { min: '', max: '' },
+}
+const RANGE_FIELDS: { key: RangeKey; label: string; unit: string; step: number }[] = [
+  { key: 'sqft', label: 'Total sqft', unit: 'sf', step: 1000 },
+  { key: 'height', label: 'Clear height', unit: 'ft', step: 1 },
+  { key: 'rent', label: 'Lease price', unit: '$/sf/yr', step: 1 },
+]
+
+/** A value passes a range if it's within any bound the user actually set. A
+ *  missing value (null) fails as soon as either bound is set. */
+function inRange(value: number | null, { min, max }: Range): boolean {
+  const lo = min.trim() === '' ? null : Number(min)
+  const hi = max.trim() === '' ? null : Number(max)
+  if (lo == null && hi == null) return true
+  if (value == null) return false
+  if (lo != null && isFinite(lo) && value < lo) return false
+  if (hi != null && isFinite(hi) && value > hi) return false
+  return true
+}
 
 type SortKey = 'label' | 'rating' | 'noi' | 'total_courts' | 'payback_years' | 'created_at'
 type SortDir = 'asc' | 'desc'
@@ -50,12 +90,15 @@ interface Props {
   onView: (row: PropertyRow) => void
   onEdit: (row: PropertyRow) => void
   onDelete: (id: string) => void
+  onStatusChange: (id: string, status: PropertyStatus) => void
 }
 
-export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
+export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange }: Props) {
   const [search, setSearch] = useState('')
   const [ratingFilter, setRatingFilter] = useState<'All' | Rating>('All')
+  const [statusFilter, setStatusFilter] = useState<'All' | PropertyStatus>('All')
   const [regionFilter, setRegionFilter] = useState<'All' | Region>('All')
+  const [ranges, setRanges] = useState<Record<RangeKey, Range>>(EMPTY_RANGES)
   // Default: rating ascending = Strong Candidate first → Do Not Pursue last.
   // RATING_ORDER assigns lower numbers to stronger ratings.
   const [sortKey, setSortKey] = useState<SortKey>('rating')
@@ -79,10 +122,14 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
       return {
         row: r,
         rating: result.rating as Rating,
+        status: normalizeStatus(r.status),
         noi: result.noi,
         totalCourts: result.courts.total,
         paybackYears: result.paybackYears,
         region: detectRegion(r.address),
+        totalSqft: r.listing_json.totalSqft,
+        clearHeight: r.listing_json.clearHeight,
+        rentPerSqftYr: r.listing_json.rentPerSqftYr,
       }
     })
   }, [rows])
@@ -114,6 +161,15 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
     if (ratingFilter !== 'All') {
       out = out.filter((e) => e.rating === ratingFilter)
     }
+    if (statusFilter !== 'All') {
+      out = out.filter((e) => e.status === statusFilter)
+    }
+    out = out.filter(
+      (e) =>
+        inRange(e.totalSqft, ranges.sqft) &&
+        inRange(e.clearHeight, ranges.height) &&
+        inRange(e.rentPerSqftYr, ranges.rent),
+    )
     const sign = sortDir === 'asc' ? 1 : -1
     out = [...out].sort((a, b) => {
       switch (sortKey) {
@@ -139,19 +195,39 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
       }
     })
     return out
-  }, [enrichedRows, search, ratingFilter, regionFilter, sortKey, sortDir])
+  }, [enrichedRows, search, ratingFilter, statusFilter, regionFilter, ranges, sortKey, sortDir])
 
   // Jump back to the first page whenever the result set changes shape so we're
   // never stranded on a page that no longer exists.
   useEffect(() => {
     setPage(1)
-  }, [search, ratingFilter, regionFilter, pageSize])
+  }, [search, ratingFilter, statusFilter, regionFilter, ranges, pageSize])
 
   const total = filteredSorted.length
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const currentPage = Math.min(page, pageCount)
   const pageStart = (currentPage - 1) * pageSize
   const paged = filteredSorted.slice(pageStart, pageStart + pageSize)
+
+  const setRange = (key: RangeKey, side: 'min' | 'max', value: string) =>
+    setRanges((cur) => ({ ...cur, [key]: { ...cur[key], [side]: value } }))
+
+  const activeRangeCount = (Object.keys(ranges) as RangeKey[]).filter(
+    (k) => ranges[k].min.trim() !== '' || ranges[k].max.trim() !== '',
+  ).length
+
+  const anyFilterActive =
+    search.trim() !== '' ||
+    ratingFilter !== 'All' ||
+    statusFilter !== 'All' ||
+    activeRangeCount > 0
+
+  const clearFilters = () => {
+    setSearch('')
+    setRatingFilter('All')
+    setStatusFilter('All')
+    setRanges(EMPTY_RANGES)
+  }
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -194,11 +270,12 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
           value={ratingFilter}
           onValueChange={(v) => setRatingFilter(v as 'All' | Rating)}
         >
-          <SelectTrigger className="w-56">
-            <SelectValue placeholder="Rating: All Properties" />
+          <SelectTrigger className="w-52">
+            <span className="text-muted-foreground">Rating:</span>
+            <SelectValue>{(v: string) => (v === 'All' ? 'All' : v)}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="All">Rating: All</SelectItem>
+            <SelectItem value="All">All</SelectItem>
             <SelectItem value="Strong Candidate">Strong Candidate</SelectItem>
             <SelectItem value="Worth Investigating">Worth Investigating</SelectItem>
             <SelectItem value="Risky">Risky</SelectItem>
@@ -206,9 +283,114 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
             <SelectItem value="Incomplete">Incomplete</SelectItem>
           </SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto tabular-nums">
-          {filteredSorted.length} {filteredSorted.length === 1 ? 'property' : 'properties'}
-        </span>
+
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v as 'All' | PropertyStatus)}
+        >
+          <SelectTrigger className="w-44">
+            <span className="text-muted-foreground">Status:</span>
+            <SelectValue>
+              {(v: string) => (v === 'All' ? 'All' : STATUS_META[v as PropertyStatus].label)}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="All">All</SelectItem>
+            {PROPERTY_STATUSES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {STATUS_META[s].label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Adjustable numeric range filters (total sqft, clear height, lease price) */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button variant="outline" className="gap-1.5">
+                <SlidersHorizontal className="size-4" />
+                Filters
+                {activeRangeCount > 0 && (
+                  <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold tabular-nums text-primary">
+                    {activeRangeCount}
+                  </span>
+                )}
+              </Button>
+            }
+          />
+          <DropdownMenuContent align="start" className="w-72 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">Filter by value</span>
+              {activeRangeCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setRanges(EMPTY_RANGES)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <DropdownMenuSeparator className="my-2" />
+            <div className="space-y-3">
+              {RANGE_FIELDS.map((f) => (
+                <div key={f.key}>
+                  <div className="mb-1 flex items-baseline justify-between">
+                    <span className="text-xs font-medium">{f.label}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {f.unit}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={f.step}
+                      placeholder="Min"
+                      value={ranges[f.key].min}
+                      onChange={(e) => setRange(f.key, 'min', e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="h-8"
+                      aria-label={`Minimum ${f.label}`}
+                    />
+                    <span className="text-muted-foreground">–</span>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={f.step}
+                      placeholder="Max"
+                      value={ranges[f.key].max}
+                      onChange={(e) => setRange(f.key, 'max', e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="h-8"
+                      aria-label={`Maximum ${f.label}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="ml-auto flex items-center gap-2">
+          {anyFilterActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-8 gap-1 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+              Clear
+            </Button>
+          )}
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {filteredSorted.length} {filteredSorted.length === 1 ? 'property' : 'properties'}
+          </span>
+        </div>
       </div>
 
       <div className="surface overflow-hidden">
@@ -234,15 +416,18 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
                 </TableCell>
               </TableRow>
             )}
-            {paged.map(({ row, rating, noi, totalCourts, paybackYears }) => (
+            {paged.map(({ row, rating, status, noi, totalCourts, paybackYears }) => (
               <TableRow
                 key={row.id}
-                className="cursor-pointer hover:bg-white/[0.03]"
+                className={`cursor-pointer hover:bg-white/[0.03] ${
+                  STATUS_META[status].inactive ? 'opacity-55' : ''
+                }`}
                 onClick={() => onView(row)}
               >
                 <TableCell className="font-medium max-w-md">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="truncate">{row.label || row.address || 'Untitled'}</span>
+                    {status !== 'active' && <StatusBadge status={status} />}
                     {row.address && (
                       <a
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.address)}`}
@@ -287,6 +472,23 @@ export function DashboardTable({ rows, onView, onEdit, onDelete }: Props) {
                       <DropdownMenuItem onClick={() => onEdit(row)}>
                         <Pencil className="size-4" /> Edit
                       </DropdownMenuItem>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <Tag className="size-4" /> Status
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuRadioGroup
+                            value={status}
+                            onValueChange={(v) => onStatusChange(row.id, v as PropertyStatus)}
+                          >
+                            {PROPERTY_STATUSES.map((s) => (
+                              <DropdownMenuRadioItem key={s} value={s}>
+                                {STATUS_META[s].label}
+                              </DropdownMenuRadioItem>
+                            ))}
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                       <DropdownMenuItem
                         onClick={() => {
                           if (confirm(`Delete "${row.label || row.address || 'this property'}"?`)) {

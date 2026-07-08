@@ -1,6 +1,7 @@
 import type { Assumptions, ExtractedListing, Rating } from '@/types/analysis'
 import type { Demographics } from '@/types/demographics'
 import type { ConditionAssessment } from '@/types/condition'
+import type { PropertyStatus } from '@/lib/property-status'
 
 export interface PropertyRow {
   id: string
@@ -11,6 +12,12 @@ export interface PropertyRow {
   address: string | null
   listing_json: ExtractedListing
   assumptions_json: Assumptions
+  /**
+   * Manual outreach / viability state. Optional so demo rows and any row read
+   * before the 0006_status migration is applied fall back to 'active' via
+   * `normalizeStatus`.
+   */
+  status?: PropertyStatus | null
   rating: Rating | null
   noi: number | null
   total_courts: number | null

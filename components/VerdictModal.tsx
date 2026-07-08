@@ -2,23 +2,40 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { VerdictHero } from '@/components/Dashboard/VerdictHero'
 import { KpiCards } from '@/components/Dashboard/KpiCards'
 import { CourtFitPanel } from '@/components/Dashboard/CourtFitPanel'
+import { PropertyDetailsPanel } from '@/components/Dashboard/PropertyDetailsPanel'
 import { FinancialBreakdown } from '@/components/Dashboard/FinancialBreakdown'
 import { RiskFlagsPanel } from '@/components/Dashboard/RiskFlagsPanel'
 import { SummaryPanel } from '@/components/Dashboard/SummaryPanel'
-import { StartupCostBreakdown } from '@/components/Dashboard/StartupCostBreakdown'
-import { ConditionPanel } from '@/components/Dashboard/ConditionPanel'
 import { CompetitionPanel } from '@/components/Dashboard/CompetitionPanel'
 import { DemographicsPanel } from '@/components/Dashboard/DemographicsPanel'
+import { StatusBadge } from '@/components/Dashboard/StatusBadge'
 import type { CompetitorSite } from '@/lib/competition'
-import { Pencil, Trash2, MapPin, X, ExternalLink } from 'lucide-react'
-import { Children, useMemo, type ReactNode } from 'react'
+import { Pencil, Trash2, MapPin, X, ExternalLink, ChevronDown, SlidersHorizontal, EyeOff } from 'lucide-react'
+import { useMemo, type ReactNode } from 'react'
 import { PhotoStrip } from './PhotoStrip'
 import type { PropertyRow } from '@/lib/supabase/types'
 import { calculateAnalysis } from '@/lib/calculator'
 import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
+import {
+  PROPERTY_STATUSES,
+  STATUS_META,
+  normalizeStatus,
+  type PropertyStatus,
+} from '@/lib/property-status'
+import { useSectionVisibility } from '@/lib/use-section-visibility'
 
 interface Props {
   property: PropertyRow | null
@@ -27,9 +44,19 @@ interface Props {
   onClose: () => void
   onEdit: (row: PropertyRow) => void
   onDelete: (id: string) => void
+  onStatusChange: (id: string, status: PropertyStatus) => void
 }
 
-export function VerdictModal({ property, sites = [], onClose, onEdit, onDelete }: Props) {
+export function VerdictModal({
+  property,
+  sites = [],
+  onClose,
+  onEdit,
+  onDelete,
+  onStatusChange,
+}: Props) {
+  const { isHidden, hide, toggle, showAll } = useSectionVisibility()
+
   // Recompute the analysis from the persisted listing + assumptions so the
   // verdict reflects the latest calculator logic, not the row's stale snapshot.
   const result = useMemo(() => {
@@ -48,6 +75,88 @@ export function VerdictModal({ property, sites = [], onClose, onEdit, onDelete }
       condition: property.condition_json,
     })
   }, [property])
+
+  const status = normalizeStatus(property?.status)
+
+  // Each toggleable panel, grouped into the labeled sections. Hiding one hides
+  // it on every property (persisted); the "Sections" menu restores them.
+  const sections = useMemo(() => {
+    if (!property || !result) return []
+    return [
+      {
+        label: 'The space & build',
+        panels: [
+          {
+            key: 'court-fit',
+            label: 'Court fit',
+            node: (
+              <CourtFitPanel
+                result={result}
+                listing={property.listing_json}
+                assumptions={property.assumptions_json}
+              />
+            ),
+          },
+          {
+            key: 'property-details',
+            label: 'Property details',
+            node: <PropertyDetailsPanel listing={property.listing_json} />,
+          },
+        ],
+      },
+      {
+        label: 'The money',
+        panels: [
+          {
+            key: 'financials',
+            label: 'Revenue & expenses',
+            node: <FinancialBreakdown result={result} />,
+          },
+        ],
+      },
+      {
+        label: 'Location & demand',
+        panels: [
+          {
+            key: 'demand',
+            label: 'Demand — trade area',
+            node: <DemographicsPanel demographics={property.demographics_json} />,
+          },
+          {
+            key: 'competition',
+            label: 'Competition & whitespace',
+            node: (
+              <CompetitionPanel
+                lat={property.latitude}
+                lng={property.longitude}
+                demographics={property.demographics_json}
+                assumptions={{ ...DEFAULT_ASSUMPTIONS, ...property.assumptions_json }}
+                sites={sites}
+              />
+            ),
+          },
+        ],
+      },
+      {
+        label: 'Risk & verdict',
+        panels: [
+          {
+            key: 'risks',
+            label: 'Risks to confirm',
+            node: <RiskFlagsPanel flags={result.riskFlags} />,
+          },
+          {
+            key: 'summary',
+            label: 'Summary',
+            node: <SummaryPanel result={result} address={property.address} />,
+          },
+        ],
+      },
+    ]
+  }, [property, result, sites])
+
+  const allPanels = useMemo(() => sections.flatMap((s) => s.panels), [sections])
+  const hiddenCount = allPanels.filter((p) => isHidden(p.key)).length
 
   return (
     <Dialog
@@ -89,8 +198,82 @@ export function VerdictModal({ property, sites = [], onClose, onEdit, onDelete }
                   Listing
                 </a>
               )}
+
+              {/* Status — user-set outreach / viability state */}
+              {property && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <button
+                        type="button"
+                        title="Set property status"
+                        className="shrink-0 inline-flex items-center gap-1 rounded-full outline-none hover:opacity-80 transition-opacity focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <StatusBadge status={status} />
+                        <ChevronDown className="size-3 text-muted-foreground" />
+                      </button>
+                    }
+                  />
+                  <DropdownMenuContent align="start" className="w-44">
+                    <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">
+                      Property status
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuRadioGroup
+                      value={status}
+                      onValueChange={(v) => onStatusChange(property.id, v as PropertyStatus)}
+                    >
+                      {PROPERTY_STATUSES.map((s) => (
+                        <DropdownMenuRadioItem key={s} value={s}>
+                          {STATUS_META[s].label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {/* Section visibility — toggles persist across every property */}
+              {property && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button variant="outline" size="sm" className="gap-1.5">
+                        <SlidersHorizontal className="size-3.5" />
+                        Sections
+                        {hiddenCount > 0 && (
+                          <span className="tabular-nums text-muted-foreground">· {hiddenCount} hidden</span>
+                        )}
+                      </Button>
+                    }
+                  />
+                  <DropdownMenuContent align="end" className="w-60">
+                    <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">
+                      Show sections
+                    </div>
+                    <p className="px-1.5 pb-1 text-[11px] leading-snug text-muted-foreground">
+                      Applies to every property on this device.
+                    </p>
+                    <DropdownMenuSeparator />
+                    {allPanels.map((p) => (
+                      <DropdownMenuCheckboxItem
+                        key={p.key}
+                        checked={!isHidden(p.key)}
+                        onCheckedChange={() => toggle(p.key)}
+                      >
+                        {p.label}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    {hiddenCount > 0 && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={showAll}>Show all sections</DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               {property && (
                 <Button variant="outline" size="sm" onClick={() => onEdit(property)} className="gap-1.5">
                   <Pencil className="size-3.5" />
@@ -137,36 +320,21 @@ export function VerdictModal({ property, sites = [], onClose, onEdit, onDelete }
             <VerdictHero result={result} address={property.address} />
             <KpiCards result={result} />
 
-            {/* Detail grouped into labeled, two-up sections so the eye can jump */}
-            <Section label="The space &amp; build">
-              <CourtFitPanel
-                result={result}
-                listing={property.listing_json}
-                assumptions={property.assumptions_json}
-              />
-              <ConditionPanel condition={property.condition_json} />
-            </Section>
-
-            <Section label="The money">
-              <FinancialBreakdown result={result} />
-              <StartupCostBreakdown result={result} />
-            </Section>
-
-            <Section label="Location &amp; demand">
-              <DemographicsPanel demographics={property.demographics_json} />
-              <CompetitionPanel
-                lat={property.latitude}
-                lng={property.longitude}
-                demographics={property.demographics_json}
-                assumptions={{ ...DEFAULT_ASSUMPTIONS, ...property.assumptions_json }}
-                sites={sites}
-              />
-            </Section>
-
-            <Section label="Risk &amp; verdict">
-              <RiskFlagsPanel flags={result.riskFlags} />
-              <SummaryPanel result={result} address={property.address} />
-            </Section>
+            {/* Detail grouped into labeled, two-up sections. Empty (fully
+                hidden) sections drop out entirely. */}
+            {sections.map((section) => {
+              const visible = section.panels.filter((p) => !isHidden(p.key))
+              if (visible.length === 0) return null
+              return (
+                <Section key={section.label} label={section.label}>
+                  {visible.map((p) => (
+                    <PanelCell key={p.key} label={p.label} onHide={() => hide(p.key)}>
+                      {p.node}
+                    </PanelCell>
+                  ))}
+                </Section>
+              )
+            })}
           </div>
         )}
       </DialogContent>
@@ -176,8 +344,7 @@ export function VerdictModal({ property, sites = [], onClose, onEdit, onDelete }
 
 /**
  * A labeled detail group: a small section header + divider, then its panels laid
- * out two-up (stacking on smaller widths). Each panel cell is min-w-0 so the
- * tabular numbers inside never force horizontal overflow.
+ * out two-up (stacking on smaller widths).
  */
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -188,11 +355,36 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
         </h3>
         <div className="h-px flex-1 bg-border" />
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">
-        {Children.map(children, (child) => (
-          <div className="min-w-0">{child}</div>
-        ))}
-      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">{children}</div>
     </section>
+  )
+}
+
+/**
+ * Wraps a single panel with a hover-revealed hide button. The cell is min-w-0 so
+ * the tabular numbers inside never force horizontal overflow.
+ */
+function PanelCell({
+  label,
+  onHide,
+  children,
+}: {
+  label: string
+  onHide: () => void
+  children: ReactNode
+}) {
+  return (
+    <div className="group/panel relative min-w-0">
+      <button
+        type="button"
+        onClick={onHide}
+        aria-label={`Hide ${label}`}
+        title={`Hide "${label}" on all properties`}
+        className="absolute right-2 top-2 z-10 hidden size-7 items-center justify-center rounded-md bg-card/90 text-muted-foreground ring-1 ring-border backdrop-blur transition-colors group-hover/panel:flex hover:text-foreground"
+      >
+        <EyeOff className="size-3.5" />
+      </button>
+      {children}
+    </div>
   )
 }

@@ -12,6 +12,8 @@ import { VerdictModal } from '@/components/VerdictModal'
 import { BookmarkletHelper } from '@/components/BookmarkletHelper'
 import { listProperties } from '@/app/actions/list-properties'
 import { deleteProperty } from '@/app/actions/delete-property'
+import { updatePropertyStatus } from '@/app/actions/update-status'
+import type { PropertyStatus } from '@/lib/property-status'
 import { geocodeMissing } from '@/app/actions/geocode-missing'
 import { backfillDemographics } from '@/app/actions/backfill-demographics'
 import { backfillConditions } from '@/app/actions/backfill-conditions'
@@ -162,6 +164,17 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
     })
   }, [demo, needsCondition])
 
+  // Set a property's manual status. Optimistically update the table + the open
+  // modal, then persist (real users only — demo mode is local-only).
+  const handleStatusChange = (id: string, status: PropertyStatus) => {
+    setRows((cur) => cur.map((r) => (r.id === id ? { ...r, status } : r)))
+    setViewing((cur) => (cur?.id === id ? { ...cur, status } : cur))
+    if (demo) return
+    void updatePropertyStatus(id, status).then((res) => {
+      if (res && 'error' in res) console.error('Failed to update status:', res.error)
+    })
+  }
+
   const handleDelete = (id: string) => {
     if (demo) {
       setRows((cur) => cur.filter((r) => r.id !== id))
@@ -223,6 +236,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
             setEditor({ row })
           }}
           onDelete={handleDelete}
+          onStatusChange={handleStatusChange}
         />
       )}
       {view === 'map' && (
@@ -246,6 +260,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           setEditor({ row })
         }}
         onDelete={handleDelete}
+        onStatusChange={handleStatusChange}
       />
 
       <EditorSheet
