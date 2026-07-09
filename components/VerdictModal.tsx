@@ -23,7 +23,7 @@ import { CompetitionPanel } from '@/components/Dashboard/CompetitionPanel'
 import { DemographicsPanel } from '@/components/Dashboard/DemographicsPanel'
 import { StatusBadge } from '@/components/Dashboard/StatusBadge'
 import type { CompetitorSite } from '@/lib/competition'
-import { Pencil, Trash2, MapPin, X, ExternalLink, ChevronDown, SlidersHorizontal, EyeOff } from 'lucide-react'
+import { Pencil, Trash2, MapPin, X, ExternalLink, ChevronDown, SlidersHorizontal, EyeOff, Star } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { PhotoStrip } from './PhotoStrip'
 import type { PropertyRow } from '@/lib/supabase/types'
@@ -45,6 +45,7 @@ interface Props {
   onEdit: (row: PropertyRow) => void
   onDelete: (id: string) => void
   onStatusChange: (id: string, status: PropertyStatus) => void
+  onInterestedChange: (id: string, interested: boolean) => void
 }
 
 export function VerdictModal({
@@ -54,6 +55,7 @@ export function VerdictModal({
   onEdit,
   onDelete,
   onStatusChange,
+  onInterestedChange,
 }: Props) {
   const { isHidden, hide, toggle, showAll } = useSectionVisibility()
 
@@ -231,6 +233,23 @@ export function VerdictModal({
                     </DropdownMenuRadioGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              )}
+
+              {/* Interested — a manual star, orthogonal to status */}
+              {property && (
+                <button
+                  type="button"
+                  onClick={() => onInterestedChange(property.id, !property.interested)}
+                  aria-pressed={!!property.interested}
+                  title={property.interested ? 'Remove from interested' : 'Mark as interested'}
+                  className={`shrink-0 inline-flex items-center rounded-full p-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+                    property.interested
+                      ? 'text-amber-300 hover:text-amber-200'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Star className={`size-4 ${property.interested ? 'fill-current' : ''}`} />
+                </button>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">

@@ -18,6 +18,12 @@ export interface PropertyRow {
    * `normalizeStatus`.
    */
   status?: PropertyStatus | null
+  /**
+   * Manual "interested" star, set by the user. Orthogonal to `status`. Optional
+   * so demo rows and any row read before the 0007_interested migration is
+   * applied fall back to false.
+   */
+  interested?: boolean | null
   rating: Rating | null
   noi: number | null
   total_courts: number | null

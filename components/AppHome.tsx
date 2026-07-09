@@ -2,17 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, List, Map as MapIcon, Trophy } from 'lucide-react'
+import { Plus, List, Map as MapIcon } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DashboardTable } from '@/components/DashboardTable'
 import { PropertiesMap } from '@/components/PropertiesMap'
-import { ComparePanel } from '@/components/ComparePanel'
 import { EditorSheet } from '@/components/EditorSheet'
 import { VerdictModal } from '@/components/VerdictModal'
 import { BookmarkletHelper } from '@/components/BookmarkletHelper'
 import { listProperties } from '@/app/actions/list-properties'
 import { deleteProperty } from '@/app/actions/delete-property'
 import { updatePropertyStatus } from '@/app/actions/update-status'
+import { updatePropertyInterested } from '@/app/actions/update-interested'
 import type { PropertyStatus } from '@/lib/property-status'
 import { geocodeMissing } from '@/app/actions/geocode-missing'
 import { backfillDemographics } from '@/app/actions/backfill-demographics'
@@ -23,7 +23,7 @@ import { DEMO_PROPERTIES } from '@/lib/demo-data'
 import type { PropertyRow, ReferenceFacilityRow } from '@/lib/supabase/types'
 
 type EditorState = { row?: PropertyRow; importedText?: string } | null
-type View = 'list' | 'map' | 'compare'
+type View = 'list' | 'map'
 
 /**
  * The signed-in dashboard. In `demo` mode (a visitor who chose "Try without an
@@ -33,7 +33,7 @@ type View = 'list' | 'map' | 'compare'
 export function AppHome({ demo = false }: { demo?: boolean }) {
   const [rows, setRows] = useState<PropertyRow[]>(demo ? DEMO_PROPERTIES : [])
   // Competitor facilities (built-in + the user's added ones) for competition /
-  // whitespace scoring across the verdict, comparison, and map views.
+  // whitespace scoring across the verdict and map views.
   const [facilities, setFacilities] = useState<ReferenceFacilityRow[]>([])
   const [editor, setEditor] = useState<EditorState>(null)
   const [viewing, setViewing] = useState<PropertyRow | null>(null)
@@ -175,6 +175,17 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
     })
   }
 
+  // Toggle the manual "interested" star. Same optimistic pattern as status —
+  // update the table + open modal immediately, then persist for real users.
+  const handleInterestedChange = (id: string, interested: boolean) => {
+    setRows((cur) => cur.map((r) => (r.id === id ? { ...r, interested } : r)))
+    setViewing((cur) => (cur?.id === id ? { ...cur, interested } : cur))
+    if (demo) return
+    void updatePropertyInterested(id, interested).then((res) => {
+      if (res && 'error' in res) console.error('Failed to update interested:', res.error)
+    })
+  }
+
   const handleDelete = (id: string) => {
     if (demo) {
       setRows((cur) => cur.filter((r) => r.id !== id))
@@ -214,10 +225,6 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
                 <MapIcon className="size-4" />
                 Map
               </TabsTrigger>
-              <TabsTrigger value="compare" className="gap-1.5">
-                <Trophy className="size-4" />
-                Compare
-              </TabsTrigger>
             </TabsList>
           </Tabs>
           <Button onClick={() => setEditor({ row: undefined })} className="gap-1.5">
@@ -237,6 +244,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           }}
           onDelete={handleDelete}
           onStatusChange={handleStatusChange}
+          onInterestedChange={handleInterestedChange}
         />
       )}
       {view === 'map' && (
@@ -246,9 +254,6 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           unmappedCount={unmappedCount}
           demo={demo}
         />
-      )}
-      {view === 'compare' && (
-        <ComparePanel rows={rows} sites={competitorSites} onView={(row) => setViewing(row)} />
       )}
 
       <VerdictModal
@@ -261,6 +266,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
         }}
         onDelete={handleDelete}
         onStatusChange={handleStatusChange}
+        onInterestedChange={handleInterestedChange}
       />
 
       <EditorSheet

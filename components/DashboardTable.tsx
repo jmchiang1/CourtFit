@@ -24,7 +24,6 @@ import {
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -32,8 +31,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
 import { StatusBadge } from '@/components/Dashboard/StatusBadge'
+import { RangeFilterMenu } from '@/components/RangeFilterMenu'
 import { fmtMoney } from '@/lib/format'
-import { ArrowUp, ArrowDown, ArrowUpDown, MoreVertical, Pencil, Trash2, Eye, MapPin, ChevronLeft, ChevronRight, SlidersHorizontal, X, Tag } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowUpDown, MoreVertical, Pencil, Trash2, Eye, MapPin, ChevronLeft, ChevronRight, X, Tag, Star } from 'lucide-react'
 import { calculateAnalysis } from '@/lib/calculator'
 import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
@@ -43,36 +43,15 @@ import {
   normalizeStatus,
   type PropertyStatus,
 } from '@/lib/property-status'
+import {
+  EMPTY_RANGES,
+  inRange,
+  countActiveRanges,
+  type Ranges,
+} from '@/lib/property-filters'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { PropertyRow } from '@/lib/supabase/types'
 import type { Rating } from '@/types/analysis'
-
-// Adjustable numeric range filters keyed to listing fields. Empty string = no
-// bound on that side.
-type RangeKey = 'sqft' | 'height' | 'rent'
-type Range = { min: string; max: string }
-const EMPTY_RANGES: Record<RangeKey, Range> = {
-  sqft: { min: '', max: '' },
-  height: { min: '', max: '' },
-  rent: { min: '', max: '' },
-}
-const RANGE_FIELDS: { key: RangeKey; label: string; unit: string; step: number }[] = [
-  { key: 'sqft', label: 'Total sqft', unit: 'sf', step: 1000 },
-  { key: 'height', label: 'Clear height', unit: 'ft', step: 1 },
-  { key: 'rent', label: 'Lease price', unit: '$/sf/yr', step: 1 },
-]
-
-/** A value passes a range if it's within any bound the user actually set. A
- *  missing value (null) fails as soon as either bound is set. */
-function inRange(value: number | null, { min, max }: Range): boolean {
-  const lo = min.trim() === '' ? null : Number(min)
-  const hi = max.trim() === '' ? null : Number(max)
-  if (lo == null && hi == null) return true
-  if (value == null) return false
-  if (lo != null && isFinite(lo) && value < lo) return false
-  if (hi != null && isFinite(hi) && value > hi) return false
-  return true
-}
 
 type SortKey = 'label' | 'rating' | 'noi' | 'total_courts' | 'payback_years' | 'created_at'
 type SortDir = 'asc' | 'desc'
@@ -91,14 +70,16 @@ interface Props {
   onEdit: (row: PropertyRow) => void
   onDelete: (id: string) => void
   onStatusChange: (id: string, status: PropertyStatus) => void
+  onInterestedChange: (id: string, interested: boolean) => void
 }
 
-export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange }: Props) {
+export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange, onInterestedChange }: Props) {
   const [search, setSearch] = useState('')
   const [ratingFilter, setRatingFilter] = useState<'All' | Rating>('All')
   const [statusFilter, setStatusFilter] = useState<'All' | PropertyStatus>('All')
+  const [interestedOnly, setInterestedOnly] = useState(false)
   const [regionFilter, setRegionFilter] = useState<'All' | Region>('All')
-  const [ranges, setRanges] = useState<Record<RangeKey, Range>>(EMPTY_RANGES)
+  const [ranges, setRanges] = useState<Ranges>(EMPTY_RANGES)
   // Default: rating ascending = Strong Candidate first → Do Not Pursue last.
   // RATING_ORDER assigns lower numbers to stronger ratings.
   const [sortKey, setSortKey] = useState<SortKey>('rating')
@@ -164,6 +145,9 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange 
     if (statusFilter !== 'All') {
       out = out.filter((e) => e.status === statusFilter)
     }
+    if (interestedOnly) {
+      out = out.filter((e) => e.row.interested)
+    }
     out = out.filter(
       (e) =>
         inRange(e.totalSqft, ranges.sqft) &&
@@ -195,13 +179,13 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange 
       }
     })
     return out
-  }, [enrichedRows, search, ratingFilter, statusFilter, regionFilter, ranges, sortKey, sortDir])
+  }, [enrichedRows, search, ratingFilter, statusFilter, interestedOnly, regionFilter, ranges, sortKey, sortDir])
 
   // Jump back to the first page whenever the result set changes shape so we're
   // never stranded on a page that no longer exists.
   useEffect(() => {
     setPage(1)
-  }, [search, ratingFilter, statusFilter, regionFilter, ranges, pageSize])
+  }, [search, ratingFilter, statusFilter, interestedOnly, regionFilter, ranges, pageSize])
 
   const total = filteredSorted.length
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
@@ -209,23 +193,18 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange 
   const pageStart = (currentPage - 1) * pageSize
   const paged = filteredSorted.slice(pageStart, pageStart + pageSize)
 
-  const setRange = (key: RangeKey, side: 'min' | 'max', value: string) =>
-    setRanges((cur) => ({ ...cur, [key]: { ...cur[key], [side]: value } }))
-
-  const activeRangeCount = (Object.keys(ranges) as RangeKey[]).filter(
-    (k) => ranges[k].min.trim() !== '' || ranges[k].max.trim() !== '',
-  ).length
-
   const anyFilterActive =
     search.trim() !== '' ||
     ratingFilter !== 'All' ||
     statusFilter !== 'All' ||
-    activeRangeCount > 0
+    interestedOnly ||
+    countActiveRanges(ranges) > 0
 
   const clearFilters = () => {
     setSearch('')
     setRatingFilter('All')
     setStatusFilter('All')
+    setInterestedOnly(false)
     setRanges(EMPTY_RANGES)
   }
 
@@ -305,75 +284,19 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange 
         </Select>
 
         {/* Adjustable numeric range filters (total sqft, clear height, lease price) */}
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button variant="outline" className="gap-1.5">
-                <SlidersHorizontal className="size-4" />
-                Filters
-                {activeRangeCount > 0 && (
-                  <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold tabular-nums text-primary">
-                    {activeRangeCount}
-                  </span>
-                )}
-              </Button>
-            }
-          />
-          <DropdownMenuContent align="start" className="w-72 p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Filter by value</span>
-              {activeRangeCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setRanges(EMPTY_RANGES)}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <DropdownMenuSeparator className="my-2" />
-            <div className="space-y-3">
-              {RANGE_FIELDS.map((f) => (
-                <div key={f.key}>
-                  <div className="mb-1 flex items-baseline justify-between">
-                    <span className="text-xs font-medium">{f.label}</span>
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {f.unit}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={f.step}
-                      placeholder="Min"
-                      value={ranges[f.key].min}
-                      onChange={(e) => setRange(f.key, 'min', e.target.value)}
-                      onKeyDown={(e) => e.stopPropagation()}
-                      className="h-8"
-                      aria-label={`Minimum ${f.label}`}
-                    />
-                    <span className="text-muted-foreground">–</span>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={f.step}
-                      placeholder="Max"
-                      value={ranges[f.key].max}
-                      onChange={(e) => setRange(f.key, 'max', e.target.value)}
-                      onKeyDown={(e) => e.stopPropagation()}
-                      className="h-8"
-                      aria-label={`Maximum ${f.label}`}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RangeFilterMenu ranges={ranges} onChange={setRanges} />
+
+        {/* Interested-only toggle */}
+        <Button
+          variant={interestedOnly ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setInterestedOnly((v) => !v)}
+          aria-pressed={interestedOnly}
+          className="h-9 gap-1.5"
+        >
+          <Star className={`size-3.5 ${interestedOnly ? 'fill-current' : ''}`} />
+          Interested
+        </Button>
 
         <div className="ml-auto flex items-center gap-2">
           {anyFilterActive && (
@@ -426,6 +349,22 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange 
               >
                 <TableCell className="font-medium max-w-md">
                   <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onInterestedChange(row.id, !row.interested)
+                      }}
+                      aria-pressed={!!row.interested}
+                      title={row.interested ? 'Remove from interested' : 'Mark as interested'}
+                      className={`shrink-0 inline-flex items-center rounded-md p-0.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+                        row.interested
+                          ? 'text-amber-300 hover:text-amber-200'
+                          : 'text-muted-foreground/40 hover:text-foreground'
+                      }`}
+                    >
+                      <Star className={`size-4 ${row.interested ? 'fill-current' : ''}`} />
+                    </button>
                     <span className="truncate">{row.label || row.address || 'Untitled'}</span>
                     {status !== 'active' && <StatusBadge status={status} />}
                     {row.address && (
@@ -471,6 +410,10 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange 
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onEdit(row)}>
                         <Pencil className="size-4" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onInterestedChange(row.id, !row.interested)}>
+                        <Star className={`size-4 ${row.interested ? 'fill-current text-amber-300' : ''}`} />
+                        {row.interested ? 'Remove interest' : 'Mark interested'}
                       </DropdownMenuItem>
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>

@@ -56,6 +56,14 @@ import {
 } from '@/app/actions/reference-facilities'
 import type { ReferenceFacilityRow } from '@/lib/supabase/types'
 import { AddFacilityDialog } from '@/components/AddFacilityDialog'
+import { RangeFilterMenu } from '@/components/RangeFilterMenu'
+import { EMPTY_RANGES, inRange, type Ranges } from '@/lib/property-filters'
+import {
+  PROPERTY_STATUSES,
+  STATUS_META,
+  normalizeStatus,
+  type PropertyStatus,
+} from '@/lib/property-status'
 
 // Pin colors mirror the rating semantics used elsewhere in the app.
 const RATING_COLOR: Record<Rating, { bg: string; border: string; glyph: string }> = {
@@ -530,6 +538,12 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
   const [region, setRegion] = useState<'all' | Region>('all')
   const [minCourts, setMinCourts] = useState(0)
   const [search, setSearch] = useState('')
+  // My Sites filters — mirror the list tab so both views filter properties the
+  // same way. (Rating / status / value ranges apply to your sites only;
+  // competitor pins have no rating, status, or listing figures.)
+  const [ratingFilter, setRatingFilter] = useState<'all' | Rating>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | PropertyStatus>('all')
+  const [ranges, setRanges] = useState<Ranges>(EMPTY_RANGES)
 
   // User-added reference facilities (signed-in only).
   const [custom, setCustom] = useState<ReferenceFacilityRow[]>([])
@@ -666,10 +680,16 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     return allProperties.filter((p) => {
       if (region !== 'all' && p.region !== region) return false
       if (p.courts < minCourts) return false
+      if (ratingFilter !== 'all' && p.rating !== ratingFilter) return false
+      if (statusFilter !== 'all' && normalizeStatus(p.row.status) !== statusFilter) return false
+      const listing = p.row.listing_json
+      if (!inRange(listing.totalSqft, ranges.sqft)) return false
+      if (!inRange(listing.clearHeight, ranges.height)) return false
+      if (!inRange(listing.rentPerSqftYr, ranges.rent)) return false
       if (q && !(`${p.title} ${p.row.address ?? ''}`.toLowerCase().includes(q))) return false
       return true
     })
-  }, [allProperties, showProperties, region, minCourts, q])
+  }, [allProperties, showProperties, region, minCourts, ratingFilter, statusFilter, ranges, q])
 
   const competitors = useMemo(() => {
     if (!showCompetitors) return []
@@ -912,6 +932,43 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
               <SelectItem value="8">8+</SelectItem>
             </SelectContent>
           </Select>
+
+          <Select value={ratingFilter} onValueChange={(v) => setRatingFilter(v as 'all' | Rating)}>
+            <SelectTrigger size="sm" className="map-filter-rating w-[165px]">
+              <span className="text-muted-foreground">Rating:</span>
+              <SelectValue>{(v: string) => (v === 'all' ? 'All' : v)}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="Strong Candidate">Strong Candidate</SelectItem>
+              <SelectItem value="Worth Investigating">Worth Investigating</SelectItem>
+              <SelectItem value="Risky">Risky</SelectItem>
+              <SelectItem value="Do Not Pursue">Do Not Pursue</SelectItem>
+              <SelectItem value="Incomplete">Incomplete</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as 'all' | PropertyStatus)}
+          >
+            <SelectTrigger size="sm" className="map-filter-status w-[150px]">
+              <span className="text-muted-foreground">Status:</span>
+              <SelectValue>
+                {(v: string) => (v === 'all' ? 'All' : STATUS_META[v as PropertyStatus].label)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              {PROPERTY_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {STATUS_META[s].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <RangeFilterMenu ranges={ranges} onChange={setRanges} size="sm" />
 
           </div>
 
