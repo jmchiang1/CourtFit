@@ -11,7 +11,10 @@ interface Props {
   item: PlacedItem;
   ppf: number;
   mode: FootprintMode;
+  /** In the current selection (draws the highlight ring). */
   selected: boolean;
+  /** The only selected item — shows resize handles + the dimension label. */
+  sole: boolean;
   warnings: WarningKind[];
 }
 
@@ -38,16 +41,53 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-export default function PlacedElement({ item, ppf, mode, selected, warnings }: Props) {
+/** Magnet range for snapping an edge flush to a neighbour / wall (feet). */
+const EDGE_SNAP_FT = 1.5;
+
+/**
+ * Given the free-drag origin on one axis and candidate origin positions that
+ * would sit the item flush against (or aligned with) a neighbour or wall,
+ * return the nearest candidate within the magnet range — or null if none is
+ * close enough, in which case the caller falls back to the grid.
+ */
+function magnetAxis(free: number, candidates: number[]): number | null {
+  let best: number | null = null;
+  let bestDist = EDGE_SNAP_FT;
+  for (const c of candidates) {
+    const dist = Math.abs(c - free);
+    if (dist < bestDist) {
+      best = c;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+export default function PlacedElement({ item, ppf, mode, selected, sole, warnings }: Props) {
   const rect = resolveRect(item, mode);
-  const { moveItem, resizeItem, select, beginGesture, snapOn, showPlayLines, building } =
-    usePlanner();
+  const {
+    moveItem,
+    moveItems,
+    resizeItem,
+    select,
+    toggleSelect,
+    beginGesture,
+    snapOn,
+    showPlayLines,
+    building,
+    items,
+  } = usePlanner();
 
   const minFt = minSizeFt(item.category);
 
-  const drag = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(
-    null,
-  );
+  const drag = useRef<{
+    startX: number;
+    startY: number;
+    origX: number;
+    origY: number;
+    /** Origin positions of every item moving with this drag (group move). */
+    group: { id: string; x: number; y: number }[];
+  } | null>(null);
   const rz = useRef<{ dir: Dir; startX: number; startY: number; orig: Rect } | null>(null);
 
   const hasWarning = warnings.length > 0;
@@ -55,23 +95,80 @@ export default function PlacedElement({ item, ppf, mode, selected, warnings }: P
   function onBodyPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return;
     e.stopPropagation();
-    select(item.id);
+
+    // Shift-click toggles this item in/out of the selection without dragging.
+    if (e.shiftKey) {
+      toggleSelect(item.id);
+      return;
+    }
+
+    // Drag the whole selection when this item is already part of a multi-
+    // selection; otherwise select just this item and drag it alone.
+    const st = usePlanner.getState();
+    let group: string[];
+    if (st.selectedIds.includes(item.id) && st.selectedIds.length > 1) {
+      group = st.selectedIds;
+    } else {
+      select(item.id);
+      group = [item.id];
+    }
+
     beginGesture();
     try {
       (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     } catch {
       /* pointer not active (e.g. synthetic event) — capture is best-effort */
     }
-    drag.current = { startX: e.clientX, startY: e.clientY, origX: item.xFt, origY: item.yFt };
+    const origins = group
+      .map((id) => st.items.find((it) => it.id === id))
+      .filter((it): it is PlacedItem => !!it)
+      .map((it) => ({ id: it.id, x: it.xFt, y: it.yFt }));
+    drag.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: item.xFt,
+      origY: item.yFt,
+      group: origins,
+    };
   }
 
   function onBodyPointerMove(e: React.PointerEvent) {
     const d = drag.current;
     if (!d) return;
-    const dxFt = (e.clientX - d.startX) / ppf;
-    const dyFt = (e.clientY - d.startY) / ppf;
-    let nx = snap(d.origX + dxFt, snapOn);
-    let ny = snap(d.origY + dyFt, snapOn);
+    const freeX = d.origX + (e.clientX - d.startX) / ppf;
+    const freeY = d.origY + (e.clientY - d.startY) / ppf;
+
+    // Group drag: shift every selected item by the same grid-snapped delta so
+    // their relative layout is preserved. (Edge snapping is single-item only.)
+    if (d.group.length > 1) {
+      const dX = snap(freeX, snapOn) - d.origX;
+      const dY = snap(freeY, snapOn) - d.origY;
+      moveItems(d.group.map((g) => ({ id: g.id, xFt: g.x + dX, yFt: g.y + dY })));
+      return;
+    }
+
+    let nx: number;
+    let ny: number;
+    if (snapOn) {
+      // Edge snapping: prefer sitting flush against a neighbour or the building
+      // wall (0-ft gap) over the grid, so items whose sizes aren't grid-aligned
+      // can still butt right up against each other. Candidates are the origin
+      // positions that make an edge flush, or two edges aligned.
+      const xCands = [0, building.lengthFt - rect.wFt];
+      const yCands = [0, building.widthFt - rect.hFt];
+      for (const other of items) {
+        if (other.id === item.id) continue;
+        const o = resolveRect(other, mode);
+        xCands.push(o.xFt + o.wFt, o.xFt - rect.wFt, o.xFt, o.xFt + o.wFt - rect.wFt);
+        yCands.push(o.yFt + o.hFt, o.yFt - rect.hFt, o.yFt, o.yFt + o.hFt - rect.hFt);
+      }
+      nx = magnetAxis(freeX, xCands) ?? snap(freeX, true);
+      ny = magnetAxis(freeY, yCands) ?? snap(freeY, true);
+    } else {
+      nx = snap(freeX, false);
+      ny = snap(freeY, false);
+    }
+
     nx = clamp(nx, -rect.wFt * 0.5, building.lengthFt - rect.wFt * 0.5);
     ny = clamp(ny, -rect.hFt * 0.5, building.widthFt - rect.hFt * 0.5);
     moveItem(item.id, nx, ny);
@@ -264,13 +361,13 @@ export default function PlacedElement({ item, ppf, mode, selected, warnings }: P
     >
       {body}
 
-      {selected && (
+      {sole && (
         <div className="pointer-events-none absolute -top-5 left-0 whitespace-nowrap rounded bg-[#0d1117] px-1.5 py-0.5 font-mono text-[10px] text-sky-300 shadow">
           {Math.round(rect.wFt)}′ × {Math.round(rect.hFt)}′
         </div>
       )}
 
-      {selected &&
+      {sole &&
         HANDLES.map((dir, i) => {
           const hx = dir.dx === -1 ? 0 : dir.dx === 1 ? w : w / 2;
           const hy = dir.dy === -1 ? 0 : dir.dy === 1 ? h : h / 2;

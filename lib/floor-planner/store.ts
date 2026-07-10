@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Category, GRID, ROOMS, baseFootprint, makeZone } from "./config";
+import { Category, GRID, MIN_BUILDING_FT, ROOMS, baseFootprint, makeZone } from "./config";
 import type {
   BuildingDef,
   FloorPlanLayout,
@@ -25,7 +25,7 @@ interface PlannerState {
   zones: ZoneDef[];
 
   // editor-only state
-  selectedId: string | null;
+  selectedIds: string[];
   snapOn: boolean;
   showPlayLines: boolean;
   past: PlacedItem[][];
@@ -46,12 +46,22 @@ interface PlannerState {
   // mutations
   addItem: (category: Category, type: string) => void;
   moveItem: (id: string, xFt: number, yFt: number) => void;
+  /** Set absolute positions for several items at once (used for group drag). */
+  moveItems: (updates: { id: string; xFt: number; yFt: number }[]) => void;
   resizeItem: (id: string, rect: { xFt: number; yFt: number; wFt: number; hFt: number }) => void;
   rotateItem: (id: string) => void;
+  rotateItems: (ids: string[]) => void;
   duplicateItem: (id: string) => void;
+  duplicateItems: (ids: string[]) => void;
   removeItem: (id: string) => void;
+  removeItems: (ids: string[]) => void;
   renameRoom: (id: string, label: string) => void;
+  /** Select exactly one item, or clear when passed null. */
   select: (id: string | null) => void;
+  /** Add/remove one item from the current selection (shift-click). */
+  toggleSelect: (id: string) => void;
+  /** Replace the whole selection (marquee). */
+  setSelection: (ids: string[]) => void;
 
   // global toggles + envelope
   setFootprintMode: (m: FootprintMode) => void;
@@ -66,7 +76,7 @@ export const usePlanner = create<PlannerState>((set, get) => {
   /** Apply an items mutation and mark the plan dirty. */
   const commit = (
     updater: (items: PlacedItem[]) => PlacedItem[],
-    opts: { history?: boolean; select?: string | null } = {},
+    opts: { history?: boolean; select?: string | string[] | null } = {},
   ) => {
     const state = get();
     const nextItems = updater(state.items);
@@ -75,7 +85,10 @@ export const usePlanner = create<PlannerState>((set, get) => {
       patch.past = [...state.past, state.items].slice(-60);
       patch.future = [];
     }
-    if (opts.select !== undefined) patch.selectedId = opts.select;
+    if (opts.select !== undefined) {
+      patch.selectedIds =
+        opts.select == null ? [] : Array.isArray(opts.select) ? opts.select : [opts.select];
+    }
     set(patch);
   };
 
@@ -86,7 +99,7 @@ export const usePlanner = create<PlannerState>((set, get) => {
     building: { name: "Floor plan", lengthFt: 150, widthFt: 100 },
     zones: [makeZone(100, 24)],
 
-    selectedId: null,
+    selectedIds: [],
     snapOn: true,
     showPlayLines: true,
     past: [],
@@ -101,7 +114,7 @@ export const usePlanner = create<PlannerState>((set, get) => {
         name: layout.name,
         building: layout.building,
         zones: layout.zones,
-        selectedId: null,
+        selectedIds: [],
         past: [],
         future: [],
         spawnSeq: 0,
@@ -133,7 +146,7 @@ export const usePlanner = create<PlannerState>((set, get) => {
           items: prev,
           past: s.past.slice(0, -1),
           future: [s.items, ...s.future].slice(0, 60),
-          selectedId: null,
+          selectedIds: [],
           dirty: true,
         };
       }),
@@ -146,7 +159,7 @@ export const usePlanner = create<PlannerState>((set, get) => {
           items: next,
           future: s.future.slice(1),
           past: [...s.past, s.items].slice(-60),
-          selectedId: null,
+          selectedIds: [],
           dirty: true,
         };
       }),
@@ -226,7 +239,60 @@ export const usePlanner = create<PlannerState>((set, get) => {
         items.map((it) => (it.id === id ? { ...it, label } : it)),
       ),
 
-    select: (id) => set({ selectedId: id }),
+    moveItems: (updates) =>
+      commit((items) =>
+        items.map((it) => {
+          const u = updates.find((u) => u.id === it.id);
+          return u ? { ...it, xFt: u.xFt, yFt: u.yFt } : it;
+        }),
+      ),
+
+    rotateItems: (ids) =>
+      commit(
+        (items) =>
+          items.map((it) => {
+            if (!ids.includes(it.id)) return it;
+            if (it.category === "room") return { ...it, wFt: it.hFt, hFt: it.wFt };
+            const swapped =
+              it.wFt != null && it.hFt != null ? { wFt: it.hFt, hFt: it.wFt } : {};
+            return { ...it, rotated: !it.rotated, ...swapped };
+          }),
+        { history: true },
+      ),
+
+    duplicateItems: (ids) => {
+      const s = get();
+      const copies: PlacedItem[] = [];
+      for (const src of s.items) {
+        if (!ids.includes(src.id)) continue;
+        copies.push({
+          ...src,
+          id: uid(),
+          xFt: snap(src.xFt + GRID.snapFt, s.snapOn),
+          yFt: snap(src.yFt + GRID.snapFt, s.snapOn),
+        });
+      }
+      if (copies.length === 0) return;
+      commit((items) => [...items, ...copies], {
+        history: true,
+        select: copies.map((c) => c.id),
+      });
+    },
+
+    removeItems: (ids) =>
+      commit((items) => items.filter((it) => !ids.includes(it.id)), {
+        history: true,
+        select: null,
+      }),
+
+    select: (id) => set({ selectedIds: id ? [id] : [] }),
+    toggleSelect: (id) =>
+      set((s) => ({
+        selectedIds: s.selectedIds.includes(id)
+          ? s.selectedIds.filter((x) => x !== id)
+          : [...s.selectedIds, id],
+      })),
+    setSelection: (ids) => set({ selectedIds: ids }),
 
     setFootprintMode: (m) => set({ footprintMode: m, dirty: true }),
     toggleSnap: () => set((s) => ({ snapOn: !s.snapOn })),
@@ -235,8 +301,8 @@ export const usePlanner = create<PlannerState>((set, get) => {
 
     setBuildingSize: (lengthFt, widthFt) => {
       const s = get();
-      const L = Math.max(20, Math.round(lengthFt));
-      const W = Math.max(20, Math.round(widthFt));
+      const L = Math.max(MIN_BUILDING_FT, Math.round(lengthFt));
+      const W = Math.max(MIN_BUILDING_FT, Math.round(widthFt));
       const building: BuildingDef = { ...s.building, lengthFt: L, widthFt: W };
       // keep a single band spanning the full depth; leave multi-zone sites alone
       const zones =

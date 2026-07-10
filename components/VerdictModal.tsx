@@ -10,6 +10,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { VerdictHero } from '@/components/Dashboard/VerdictHero'
@@ -24,7 +27,7 @@ import { DemographicsPanel } from '@/components/Dashboard/DemographicsPanel'
 import { FloorPlanPanel } from '@/components/FloorPlanner/FloorPlanPanel'
 import { StatusBadge } from '@/components/Dashboard/StatusBadge'
 import type { CompetitorSite } from '@/lib/competition'
-import { Pencil, Trash2, MapPin, X, ExternalLink, ChevronDown, SlidersHorizontal, EyeOff, Star } from 'lucide-react'
+import { Pencil, Trash2, MapPin, X, ExternalLink, ChevronDown, SlidersHorizontal, EyeOff, Star, MoreVertical } from 'lucide-react'
 import { useMemo, type ReactNode } from 'react'
 import { PhotoStrip } from './PhotoStrip'
 import type { PropertyRow } from '@/lib/supabase/types'
@@ -183,8 +186,25 @@ export function VerdictModal({
         <DialogHeader className="min-w-0">
           <div className="flex items-center justify-between gap-3 min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <DialogTitle className="truncate">
-                {property?.label || property?.address || 'Property analysis'}
+              {/* Title doubles as the source-listing link when we have one, so
+                  the standalone "Listing" chip drops off the row entirely. */}
+              <DialogTitle className="min-w-0 truncate">
+                {property?.listing_json.sourceUrl ? (
+                  <a
+                    href={property.listing_json.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open source listing"
+                    className="group/title inline-flex min-w-0 items-center gap-1.5 hover:text-foreground/80 transition-colors"
+                  >
+                    <span className="truncate">
+                      {property?.label || property?.address || 'Property analysis'}
+                    </span>
+                    <ExternalLink className="size-3.5 shrink-0 text-muted-foreground transition-colors group-hover/title:text-foreground" />
+                  </a>
+                ) : (
+                  property?.label || property?.address || 'Property analysis'
+                )}
               </DialogTitle>
               {property?.address && (
                 <a
@@ -197,39 +217,38 @@ export function VerdictModal({
                   <MapPin className="size-4" />
                 </a>
               )}
-              {property?.listing_json.sourceUrl && (
-                <a
-                  href={property.listing_json.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Open source listing"
-                  className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="size-3.5" />
-                  Listing
-                </a>
-              )}
 
-              {/* Status — user-set outreach / viability state */}
+              {/* One menu for both the outreach status and the manual
+                  "interested" star. The star only shows on the trigger when set,
+                  so it's an at-a-glance cue rather than a standing control. */}
               {property && (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
                       <button
                         type="button"
-                        title="Set property status"
+                        title="Set status / interested"
                         className="shrink-0 inline-flex items-center gap-1 rounded-full outline-none hover:opacity-80 transition-opacity focus-visible:ring-2 focus-visible:ring-ring"
                       >
+                        {property.interested && (
+                          <Star className="size-3.5 fill-current text-amber-300" />
+                        )}
                         <StatusBadge status={status} />
                         <ChevronDown className="size-3 text-muted-foreground" />
                       </button>
                     }
                   />
                   <DropdownMenuContent align="start" className="w-44">
+                    <DropdownMenuCheckboxItem
+                      checked={!!property.interested}
+                      onCheckedChange={(checked) => onInterestedChange(property.id, checked)}
+                    >
+                      Interested
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuSeparator />
                     <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">
                       Property status
                     </div>
-                    <DropdownMenuSeparator />
                     <DropdownMenuRadioGroup
                       value={status}
                       onValueChange={(v) => onStatusChange(property.id, v as PropertyStatus)}
@@ -243,85 +262,80 @@ export function VerdictModal({
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
-
-              {/* Interested — a manual star, orthogonal to status */}
-              {property && (
-                <button
-                  type="button"
-                  onClick={() => onInterestedChange(property.id, !property.interested)}
-                  aria-pressed={!!property.interested}
-                  title={property.interested ? 'Remove from interested' : 'Mark as interested'}
-                  className={`shrink-0 inline-flex items-center rounded-full p-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
-                    property.interested
-                      ? 'text-amber-300 hover:text-amber-200'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <Star className={`size-4 ${property.interested ? 'fill-current' : ''}`} />
-                </button>
-              )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {/* Section visibility — toggles persist across every property */}
+              {/* Edit, section visibility, and Delete collapsed into one
+                  overflow menu so the header stays light — matches the list
+                  table's per-row action menu. */}
               {property && (
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
-                      <Button variant="outline" size="sm" className="gap-1.5">
-                        <SlidersHorizontal className="size-3.5" />
-                        Sections
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="relative size-8 p-0"
+                        aria-label="More actions"
+                      >
+                        <MoreVertical className="size-4" />
+                        {/* Dot preserves the "some sections hidden" signal now
+                            that the Sections control lives inside this menu. */}
                         {hiddenCount > 0 && (
-                          <span className="tabular-nums text-muted-foreground">· {hiddenCount} hidden</span>
+                          <span className="absolute right-1 top-1 size-1.5 rounded-full bg-foreground/70" />
                         )}
                       </Button>
                     }
                   />
-                  <DropdownMenuContent align="end" className="w-60">
-                    <div className="px-1.5 py-1 text-xs font-medium text-muted-foreground">
-                      Show sections
-                    </div>
-                    <p className="px-1.5 pb-1 text-[11px] leading-snug text-muted-foreground">
-                      Applies to every property on this device.
-                    </p>
-                    <DropdownMenuSeparator />
-                    {allPanels.map((p) => (
-                      <DropdownMenuCheckboxItem
-                        key={p.key}
-                        checked={!isHidden(p.key)}
-                        onCheckedChange={() => toggle(p.key)}
-                      >
-                        {p.label}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    {hiddenCount > 0 && (
-                      <>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem onClick={() => onEdit(property)}>
+                      <Pencil className="size-4" /> Edit
+                    </DropdownMenuItem>
+
+                    {/* Section visibility — toggles persist across every property */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <SlidersHorizontal className="size-4" />
+                        Sections
+                        {hiddenCount > 0 && (
+                          <span className="tabular-nums text-muted-foreground">· {hiddenCount} hidden</span>
+                        )}
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-60">
+                        <p className="px-1.5 py-1 text-[11px] leading-snug text-muted-foreground">
+                          Applies to every property on this device.
+                        </p>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={showAll}>Show all sections</DropdownMenuItem>
-                      </>
-                    )}
+                        {allPanels.map((p) => (
+                          <DropdownMenuCheckboxItem
+                            key={p.key}
+                            checked={!isHidden(p.key)}
+                            onCheckedChange={() => toggle(p.key)}
+                          >
+                            {p.label}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                        {hiddenCount > 0 && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={showAll}>Show all sections</DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        if (confirm(`Delete "${property.label || property.address || 'this property'}"?`)) {
+                          onDelete(property.id)
+                        }
+                      }}
+                      className="text-rose-300"
+                    >
+                      <Trash2 className="size-4" /> Delete
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )}
-              {property && (
-                <Button variant="outline" size="sm" onClick={() => onEdit(property)} className="gap-1.5">
-                  <Pencil className="size-3.5" />
-                  Edit
-                </Button>
-              )}
-              {property && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    if (confirm(`Delete "${property.label || property.address || 'this property'}"?`)) {
-                      onDelete(property.id)
-                    }
-                  }}
-                  className="gap-1.5 text-rose-300 hover:text-rose-200 hover:bg-rose-400/10"
-                >
-                  <Trash2 className="size-3.5" />
-                  Delete
-                </Button>
               )}
               <Button
                 variant="ghost"
@@ -355,11 +369,21 @@ export function VerdictModal({
               if (visible.length === 0) return null
               return (
                 <Section key={section.label} label={section.label}>
-                  {visible.map((p) => (
-                    <PanelCell key={p.key} label={p.label} onHide={() => hide(p.key)}>
-                      {p.node}
-                    </PanelCell>
-                  ))}
+                  {visible.map((p, i) => {
+                    // A card left alone in the final row (odd count → last one)
+                    // spans the full width instead of leaving an empty column.
+                    const full = visible.length % 2 === 1 && i === visible.length - 1
+                    return (
+                      <PanelCell
+                        key={p.key}
+                        label={p.label}
+                        onHide={() => hide(p.key)}
+                        full={full}
+                      >
+                        {p.node}
+                      </PanelCell>
+                    )
+                  })}
                 </Section>
               )
             })}
@@ -396,13 +420,23 @@ function PanelCell({
   label,
   onHide,
   children,
+  full = false,
 }: {
   label: string
   onHide: () => void
   children: ReactNode
+  /** Span both columns (used for a card left alone in its row). */
+  full?: boolean
 }) {
+  // flex-col + the panel growing to flex-1 makes the card fill the grid cell's
+  // full height, so cards sharing a row are always equal (tallest) height. The
+  // hide button is absolute, so it stays out of the flex flow.
   return (
-    <div className="group/panel relative min-w-0">
+    <div
+      className={`group/panel relative flex min-w-0 flex-col [&>*:last-child]:flex-1 ${
+        full ? 'xl:col-span-2' : ''
+      }`}
+    >
       <button
         type="button"
         onClick={onHide}

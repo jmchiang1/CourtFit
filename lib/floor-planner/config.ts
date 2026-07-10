@@ -11,10 +11,13 @@
 import type { BuildingDef, ZoneDef } from "./types";
 
 export const GRID = {
-  snapFt: 5, // snap-to-grid increment
-  minorFt: 5, // faint grid line every 5 ft
-  majorFt: 25, // bold grid line every 25 ft
+  snapFt: 2, // snap-to-grid increment
+  minorFt: 2, // faint grid line every 2 ft (matches the snap increment)
+  majorFt: 10, // bold grid line every 10 ft
 };
+
+/** Smallest allowed building dimension (ft), in either axis. */
+export const MIN_BUILDING_FT = 20;
 
 /** Base render scale — the plan renders at `BASE_PPF * zoom` pixels per foot. */
 export const BASE_PPF = 3;
@@ -57,8 +60,8 @@ export const COURTS = {
   badminton: {
     label: "Badminton",
     short: "BAD",
-    play: { w: 44, h: 20 }, // painted doubles lines (20 × 44)
-    footprint: { w: 44, h: 22 }, // court + minimal edge (22 × 44)
+    play: { w: 44, h: 20 }, // painted doubles lines, 13.4 m × 6.1 m (20 × 44)
+    footprint: { w: 50.5, h: 23.3 }, // full court mat, 15.4 m × 7.1 m (23.3 × 50.5)
     minCeilingFt: 24, // 24 ft min; 26–30+ for club play; BWF intl ≈ 39 ft
     color: "#5a8a3c",
   },

@@ -39,12 +39,15 @@ function Stat({
 export default function Readouts({ tally, diag }: Props) {
   const {
     items,
-    selectedId,
+    selectedIds,
     building,
     zones,
     rotateItem,
     duplicateItem,
     removeItem,
+    rotateItems,
+    duplicateItems,
+    removeItems,
     renameRoom,
     select,
   } = usePlanner();
@@ -55,7 +58,11 @@ export default function Readouts({ tally, diag }: Props) {
     [zones, building.lengthFt],
   );
 
-  const selected = items.find((it) => it.id === selectedId) ?? null;
+  // The detailed inspector is for a single selection; a multi-selection shows a
+  // lightweight group panel with bulk actions instead.
+  const selected =
+    selectedIds.length === 1 ? items.find((it) => it.id === selectedIds[0]) ?? null : null;
+  const multi = selectedIds.length > 1;
   const selWarnings = selected ? diag[selected.id]?.warnings ?? [] : [];
 
   const courtRows = useMemo(
@@ -79,6 +86,41 @@ export default function Readouts({ tally, diag }: Props) {
   return (
     <aside className="flex h-full w-72 shrink-0 flex-col border-l border-[#232a34] bg-[#161b22]">
       <div className="min-h-0 flex-1 overflow-y-auto">
+        {multi && (
+          <div className="border-b border-[#232a34] p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-400">
+                {selectedIds.length} selected
+              </span>
+              <button
+                onClick={() => select(null)}
+                className="text-[11px] text-neutral-500 hover:text-neutral-300"
+              >
+                deselect
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
+              <button
+                onClick={() => rotateItems(selectedIds)}
+                className="rounded-md border border-[#232a34] py-1.5 text-[12px] text-neutral-200 hover:bg-white/10"
+              >
+                Rotate
+              </button>
+              <button
+                onClick={() => duplicateItems(selectedIds)}
+                className="rounded-md border border-[#232a34] py-1.5 text-[12px] text-neutral-200 hover:bg-white/10"
+              >
+                Clone
+              </button>
+              <button
+                onClick={() => removeItems(selectedIds)}
+                className="rounded-md border border-red-500/40 py-1.5 text-[12px] text-red-300 hover:bg-red-500/15"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
         {selected && (
           <div className="border-b border-[#232a34] p-3">
             <div className="mb-2 flex items-center justify-between">

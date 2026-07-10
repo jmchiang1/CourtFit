@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePlanner } from "@/lib/floor-planner/store";
+import { MIN_BUILDING_FT } from "@/lib/floor-planner/config";
 
 interface Props {
   zoom: number;
@@ -32,6 +34,62 @@ function Seg({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * A building-dimension field (ft). Holds a free-text draft while focused so the
+ * user can type or backspace freely — the min-size clamp is only applied when
+ * the edit is committed (blur or Enter), not on every keystroke. Committing an
+ * out-of-range or empty value snaps the field to the clamped result.
+ */
+function DimensionInput({
+  value,
+  onCommit,
+  title,
+}: {
+  value: number;
+  onCommit: (v: number) => void;
+  title: string;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  // Re-sync from the committed value whenever it changes externally, but never
+  // while the user is mid-edit (that would clobber what they're typing).
+  useEffect(() => {
+    if (!focused) setDraft(String(value));
+  }, [value, focused]);
+
+  const commit = () => {
+    const n = Number(draft);
+    if (draft.trim() === "" || !Number.isFinite(n)) {
+      setDraft(String(value)); // invalid → revert to the last good value
+      return;
+    }
+    const clamped = Math.max(MIN_BUILDING_FT, Math.round(n));
+    setDraft(String(clamped));
+    onCommit(clamped);
+  };
+
+  return (
+    <input
+      type="number"
+      inputMode="numeric"
+      min={MIN_BUILDING_FT}
+      value={draft}
+      onFocus={() => setFocused(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        setFocused(false);
+        commit();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+      }}
+      className="h-7 w-16 rounded-md border border-[#232a34] bg-[#0d1117] px-1.5 text-center font-mono text-[12px] text-neutral-100 outline-none focus:border-sky-500"
+      title={title}
+    />
   );
 }
 
@@ -91,19 +149,15 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
       {/* building envelope */}
       <div className="flex items-center gap-1 text-[11px] text-neutral-500">
         <span className="uppercase tracking-wide">Building</span>
-        <input
-          type="number"
+        <DimensionInput
           value={building.lengthFt}
-          onChange={(e) => setBuildingSize(Number(e.target.value) || 0, building.widthFt)}
-          className="h-7 w-16 rounded-md border border-[#232a34] bg-[#0d1117] px-1.5 text-center font-mono text-[12px] text-neutral-100 outline-none focus:border-sky-500"
+          onCommit={(v) => setBuildingSize(v, building.widthFt)}
           title="Length (ft)"
         />
         <span className="text-neutral-600">×</span>
-        <input
-          type="number"
+        <DimensionInput
           value={building.widthFt}
-          onChange={(e) => setBuildingSize(building.lengthFt, Number(e.target.value) || 0)}
-          className="h-7 w-16 rounded-md border border-[#232a34] bg-[#0d1117] px-1.5 text-center font-mono text-[12px] text-neutral-100 outline-none focus:border-sky-500"
+          onCommit={(v) => setBuildingSize(building.lengthFt, v)}
           title="Width (ft)"
         />
         <span className="text-neutral-600">ft</span>
@@ -128,8 +182,8 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
         </Seg>
       </div>
 
-      <Seg active={snapOn} onClick={toggleSnap} title="Snap to 5 ft grid">
-        Snap 5′
+      <Seg active={snapOn} onClick={toggleSnap} title="Snap to 2 ft grid">
+        Snap 2′
       </Seg>
       <Seg active={showPlayLines} onClick={toggleShowPlayLines} title="Draw inner court lines">
         Court lines

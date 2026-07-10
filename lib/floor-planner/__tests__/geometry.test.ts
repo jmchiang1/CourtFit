@@ -13,12 +13,12 @@ function court(id: string, type: string, xFt: number, yFt: number, rotated = fal
 describe('resolveRect', () => {
   it('uses footprint vs play size for a court', () => {
     const c = court('a', 'badminton', 0, 0)
-    expect(resolveRect(c, 'footprint')).toMatchObject({ wFt: 44, hFt: 22 })
+    expect(resolveRect(c, 'footprint')).toMatchObject({ wFt: 50.5, hFt: 23.3 })
     expect(resolveRect(c, 'play')).toMatchObject({ wFt: 44, hFt: 20 })
   })
   it('swaps axes when rotated', () => {
     const c = court('a', 'badminton', 0, 0, true)
-    expect(resolveRect(c, 'footprint')).toMatchObject({ wFt: 22, hFt: 44 })
+    expect(resolveRect(c, 'footprint')).toMatchObject({ wFt: 23.3, hFt: 50.5 })
   })
 })
 
@@ -57,10 +57,11 @@ describe('diagnose', () => {
 describe('tally', () => {
   const zones = [makeZone(100, 30)]
   it('counts only valid, in-bounds, non-overlapping courts', () => {
+    // Spaced for the 50.5-ft-wide badminton mat so a/b/c don't overlap.
     const items = [
       court('a', 'badminton', 10, 10),
-      court('b', 'badminton', 60, 10),
-      court('c', 'pickleball', 110, 10),
+      court('b', 'badminton', 70, 10),
+      court('c', 'pickleball', 130, 10),
       court('d', 'badminton', 190, 10), // out of bounds → excluded
     ]
     const d = diagnose(items, 'footprint', building, zones)
