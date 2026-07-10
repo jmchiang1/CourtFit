@@ -21,6 +21,7 @@ import { RiskFlagsPanel } from '@/components/Dashboard/RiskFlagsPanel'
 import { SummaryPanel } from '@/components/Dashboard/SummaryPanel'
 import { CompetitionPanel } from '@/components/Dashboard/CompetitionPanel'
 import { DemographicsPanel } from '@/components/Dashboard/DemographicsPanel'
+import { FloorPlanPanel } from '@/components/FloorPlanner/FloorPlanPanel'
 import { StatusBadge } from '@/components/Dashboard/StatusBadge'
 import type { CompetitorSite } from '@/lib/competition'
 import { Pencil, Trash2, MapPin, X, ExternalLink, ChevronDown, SlidersHorizontal, EyeOff, Star } from 'lucide-react'
@@ -46,6 +47,8 @@ interface Props {
   onDelete: (id: string) => void
   onStatusChange: (id: string, status: PropertyStatus) => void
   onInterestedChange: (id: string, interested: boolean) => void
+  /** Open the full-screen floor planner for this property. */
+  onOpenPlanner: (row: PropertyRow) => void
 }
 
 export function VerdictModal({
@@ -56,6 +59,7 @@ export function VerdictModal({
   onDelete,
   onStatusChange,
   onInterestedChange,
+  onOpenPlanner,
 }: Props) {
   const { isHidden, hide, toggle, showAll } = useSectionVisibility()
 
@@ -103,6 +107,11 @@ export function VerdictModal({
             key: 'property-details',
             label: 'Property details',
             node: <PropertyDetailsPanel listing={property.listing_json} />,
+          },
+          {
+            key: 'floor-plan',
+            label: 'Floor plan',
+            node: <FloorPlanPanel property={property} onOpen={() => onOpenPlanner(property)} />,
           },
         ],
       },
@@ -155,7 +164,7 @@ export function VerdictModal({
         ],
       },
     ]
-  }, [property, result, sites])
+  }, [property, result, sites, onOpenPlanner])
 
   const allPanels = useMemo(() => sections.flatMap((s) => s.panels), [sections])
   const hiddenCount = allPanels.filter((p) => isHidden(p.key)).length

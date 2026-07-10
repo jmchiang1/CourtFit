@@ -8,6 +8,7 @@ import { DashboardTable } from '@/components/DashboardTable'
 import { PropertiesMap } from '@/components/PropertiesMap'
 import { EditorSheet } from '@/components/EditorSheet'
 import { VerdictModal } from '@/components/VerdictModal'
+import { FloorPlannerOverlay } from '@/components/FloorPlanner/FloorPlannerOverlay'
 import { BookmarkletHelper } from '@/components/BookmarkletHelper'
 import { listProperties } from '@/app/actions/list-properties'
 import { deleteProperty } from '@/app/actions/delete-property'
@@ -21,6 +22,7 @@ import { listReferenceFacilities } from '@/app/actions/reference-facilities'
 import { buildCompetitorSites } from '@/lib/competition'
 import { DEMO_PROPERTIES } from '@/lib/demo-data'
 import type { PropertyRow, ReferenceFacilityRow } from '@/lib/supabase/types'
+import type { FloorPlanLayout } from '@/lib/floor-planner/types'
 
 type EditorState = { row?: PropertyRow; importedText?: string } | null
 type View = 'list' | 'map'
@@ -37,6 +39,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
   const [facilities, setFacilities] = useState<ReferenceFacilityRow[]>([])
   const [editor, setEditor] = useState<EditorState>(null)
   const [viewing, setViewing] = useState<PropertyRow | null>(null)
+  const [plannerFor, setPlannerFor] = useState<PropertyRow | null>(null)
   const [view, setView] = useState<View>('list')
   const [, startReload] = useTransition()
   // Ensures the one-time backfill of legacy rows runs only once per session.
@@ -186,6 +189,15 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
     })
   }
 
+  // A layout was saved in the floor planner — reflect it in the table, the open
+  // verdict, and the planner's own copy (same optimistic pattern as status).
+  const handleLayoutSaved = (id: string, layout: FloorPlanLayout, updatedAt: string) => {
+    const patch = { layout_json: layout, layout_updated_at: updatedAt }
+    setRows((cur) => cur.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+    setViewing((cur) => (cur?.id === id ? { ...cur, ...patch } : cur))
+    setPlannerFor((cur) => (cur?.id === id ? { ...cur, ...patch } : cur))
+  }
+
   const handleDelete = (id: string) => {
     if (demo) {
       setRows((cur) => cur.filter((r) => r.id !== id))
@@ -267,7 +279,17 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
         onDelete={handleDelete}
         onStatusChange={handleStatusChange}
         onInterestedChange={handleInterestedChange}
+        onOpenPlanner={(row) => setPlannerFor(row)}
       />
+
+      {plannerFor && (
+        <FloorPlannerOverlay
+          property={plannerFor}
+          demo={demo}
+          onClose={() => setPlannerFor(null)}
+          onSaved={handleLayoutSaved}
+        />
+      )}
 
       <EditorSheet
         initial={editor}

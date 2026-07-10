@@ -2,6 +2,7 @@ import type { Assumptions, ExtractedListing, Rating } from '@/types/analysis'
 import type { Demographics } from '@/types/demographics'
 import type { ConditionAssessment } from '@/types/condition'
 import type { PropertyStatus } from '@/lib/property-status'
+import type { FloorPlanLayout } from '@/lib/floor-planner/types'
 
 export interface PropertyRow {
   id: string
@@ -38,6 +39,13 @@ export interface PropertyRow {
   /** Cached AI condition assessment (null until assessed). */
   condition_json: ConditionAssessment | null
   condition_at: string | null
+  /**
+   * Per-property floor plan ({ building, zones, footprintMode, items }). Optional
+   * so demo rows and any row read before the 0008_layout migration fall back to
+   * a freshly seeded layout. Null until the user opens the planner and saves.
+   */
+  layout_json?: FloorPlanLayout | null
+  layout_updated_at?: string | null
 }
 
 /** A competitor/reference facility the user added from the map. */
