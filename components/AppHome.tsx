@@ -71,12 +71,12 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
     if (!demo) reload()
   }, [demo, reload])
 
-  // Load the user's added competitor facilities once; combined with the built-in
-  // curated list, these drive the competition / whitespace scoring.
+  // Load the added competitor facilities once; combined with the built-in curated
+  // list, these drive the competition / whitespace scoring. They're shared
+  // reference data, so demo (signed-out) sessions load them too.
   useEffect(() => {
-    if (demo) return
     listReferenceFacilities().then(setFacilities)
-  }, [demo])
+  }, [])
 
   const competitorSites = useMemo(() => buildCompetitorSites(facilities), [facilities])
 

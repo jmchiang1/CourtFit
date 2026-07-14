@@ -12,10 +12,19 @@ export interface AddFacilityInput {
   sports: string[]
 }
 
+/**
+ * Reference facilities are shared competitor data — readable by everyone,
+ * including signed-out visitors on the demo map (RLS grants public select;
+ * writes stay owner-only).
+ */
 export async function listReferenceFacilities(): Promise<ReferenceFacilityRow[]> {
-  const sb = await createSupabaseServerClient()
-  const { data: { user } } = await sb.auth.getUser()
-  if (!user) return []
+  let sb
+  try {
+    sb = await createSupabaseServerClient()
+  } catch {
+    // Supabase not configured — the demo map falls back to the built-in list.
+    return []
+  }
 
   const { data, error } = await sb
     .from('reference_facilities')

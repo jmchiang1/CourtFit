@@ -563,8 +563,9 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     setAddOpen(true)
   }
 
+  // Added facilities are shared reference data, so load them in demo mode too —
+  // signed-out visitors see the same competitor set, minus the edit/add controls.
   useEffect(() => {
-    if (demo) return
     let active = true
     listReferenceFacilities().then((list) => {
       if (active) setCustom(list)
@@ -572,7 +573,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     return () => {
       active = false
     }
-  }, [demo])
+  }, [])
 
   const handleDeleteFacility = (id: string) => {
     setCustom((cur) => cur.filter((r) => r.id !== id))
@@ -1371,7 +1372,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                       </div>
                     </div>
                   </button>
-                  {c.custom && (
+                  {c.custom && !demo && (
                     <div className="absolute right-2 top-2 hidden items-center gap-0.5 group-hover:flex">
                       <button
                         type="button"
