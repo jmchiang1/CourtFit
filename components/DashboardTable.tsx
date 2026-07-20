@@ -32,8 +32,9 @@ import {
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
 import { StatusBadge } from '@/components/Dashboard/StatusBadge'
 import { RangeFilterMenu } from '@/components/RangeFilterMenu'
+import { ColumnPickerMenu } from '@/components/ColumnPickerMenu'
 import { fmtMoney } from '@/lib/format'
-import { ArrowUp, ArrowDown, ArrowUpDown, MoreVertical, Pencil, Trash2, Eye, MapPin, ChevronLeft, ChevronRight, X, Tag, Star } from 'lucide-react'
+import { ArrowUp, ArrowDown, ArrowUpDown, GripVertical, MoreVertical, Pencil, Trash2, Eye, MapPin, ChevronLeft, ChevronRight, X, Tag, Star } from 'lucide-react'
 import { calculateAnalysis } from '@/lib/calculator'
 import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
@@ -50,10 +51,21 @@ import {
   type Ranges,
 } from '@/lib/property-filters'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  COLUMNS,
+  DEFAULT_COLUMN_PREFS,
+  loadColumnPrefs,
+  moveColumn,
+  orderedVisibleColumns,
+  saveColumnPrefs,
+  type ColumnDef,
+  type ColumnKey,
+  type ColumnPrefs,
+  type SortKey,
+} from '@/lib/table-columns'
 import type { PropertyRow } from '@/lib/supabase/types'
 import type { Rating } from '@/types/analysis'
 
-type SortKey = 'label' | 'rating' | 'noi' | 'total_courts' | 'payback_years' | 'created_at'
 type SortDir = 'asc' | 'desc'
 
 const RATING_ORDER: Record<Rating, number> = {
@@ -86,6 +98,46 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [pageSize, setPageSize] = useState(10)
   const [page, setPage] = useState(1)
+  // Start from the defaults so SSR and first client render agree, then adopt
+  // the saved layout in an effect (localStorage is client-only).
+  const [columnPrefs, setColumnPrefs] = useState<ColumnPrefs>(DEFAULT_COLUMN_PREFS)
+  // Which column is mid-drag, and where it would land — drives the drop indicator.
+  const [dragKey, setDragKey] = useState<ColumnKey | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ key: ColumnKey; side: 'before' | 'after' } | null>(
+    null,
+  )
+
+  useEffect(() => {
+    const saved = loadColumnPrefs()
+    if (saved) setColumnPrefs(saved)
+  }, [])
+
+  const changePrefs = (next: ColumnPrefs) => {
+    setColumnPrefs(next)
+    saveColumnPrefs(next)
+    // Don't leave the table sorted by a column the user can no longer see —
+    // fall back to the leftmost remaining column.
+    const stillShown = orderedVisibleColumns(next)
+    if (!stillShown.some((c) => c.sortKey === sortKey)) {
+      setSortKey(stillShown[0].sortKey)
+      setSortDir('asc')
+    }
+  }
+
+  const shownColumns = useMemo(() => orderedVisibleColumns(columnPrefs), [columnPrefs])
+
+  /** Reorders by dropping `key` beside `targetKey`, or by keyboard nudge. */
+  const reorder = (key: ColumnKey, targetKey: ColumnKey, side: 'before' | 'after') => {
+    changePrefs({ ...columnPrefs, order: moveColumn(columnPrefs.order, key, targetKey, side) })
+  }
+
+  /** Alt+Arrow on a focused header swaps it with its visible neighbour. */
+  const nudge = (key: ColumnKey, delta: -1 | 1) => {
+    const at = shownColumns.findIndex((c) => c.key === key)
+    const neighbour = shownColumns[at + delta]
+    if (!neighbour) return
+    reorder(key, neighbour.key, delta === -1 ? 'before' : 'after')
+  }
 
   // Recompute analysis fresh from listing_json + assumptions_json so the table
   // always reflects the current calculator logic, not the stale snapshot
@@ -164,15 +216,24 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
         }
         case 'rating':
           return (RATING_ORDER[a.rating] - RATING_ORDER[b.rating]) * sign
+        case 'status':
+          return (
+            (PROPERTY_STATUSES.indexOf(a.status) - PROPERTY_STATUSES.indexOf(b.status)) * sign
+          )
         case 'noi':
           return (a.noi - b.noi) * sign
         case 'total_courts':
           return (a.totalCourts - b.totalCourts) * sign
-        case 'payback_years': {
-          const av = a.paybackYears ?? Infinity
-          const bv = b.paybackYears ?? Infinity
-          return (av - bv) * sign
-        }
+        case 'payback_years':
+          return cmpNullable(a.paybackYears, b.paybackYears) * sign
+        case 'total_sqft':
+          return cmpNullable(a.totalSqft, b.totalSqft) * sign
+        case 'clear_height':
+          return cmpNullable(a.clearHeight, b.clearHeight) * sign
+        case 'rent_per_sqft':
+          return cmpNullable(a.rentPerSqftYr, b.rentPerSqftYr) * sign
+        case 'region':
+          return (a.region ?? '').localeCompare(b.region ?? '') * sign
         case 'created_at':
         default:
           return (new Date(a.row.created_at).getTime() - new Date(b.row.created_at).getTime()) * sign
@@ -214,7 +275,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
     } else {
       setSortKey(key)
       // Text-y / "good is low" columns ascend by default; numeric / recency desc.
-      setSortDir(key === 'label' || key === 'rating' ? 'asc' : 'desc')
+      setSortDir(TEXT_SORT_KEYS.has(key) ? 'asc' : 'desc')
     }
   }
 
@@ -298,6 +359,9 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
           Interested
         </Button>
 
+        {/* Which table headers to show */}
+        <ColumnPickerMenu prefs={columnPrefs} onChange={changePrefs} />
+
         <div className="ml-auto flex items-center gap-2">
           {anyFilterActive && (
             <Button
@@ -320,26 +384,47 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
         <Table>
           <TableHeader>
             <TableRow>
-              <SortHeader label="Address / Label" active={sortKey === 'label'} dir={sortDir} onClick={() => toggleSort('label')} />
-              <SortHeader label="Rating" active={sortKey === 'rating'} dir={sortDir} onClick={() => toggleSort('rating')} />
-              <SortHeader label="NOI" active={sortKey === 'noi'} dir={sortDir} onClick={() => toggleSort('noi')} align="right" />
-              <SortHeader label="Courts" active={sortKey === 'total_courts'} dir={sortDir} onClick={() => toggleSort('total_courts')} align="right" />
-              <SortHeader label="Payback" active={sortKey === 'payback_years'} dir={sortDir} onClick={() => toggleSort('payback_years')} align="right" />
-              <SortHeader label="Added" active={sortKey === 'created_at'} dir={sortDir} onClick={() => toggleSort('created_at')} align="right" />
+              {shownColumns.map((c) => (
+                <SortHeader
+                  key={c.key}
+                  column={c}
+                  active={sortKey === c.sortKey}
+                  dir={sortDir}
+                  onClick={() => toggleSort(c.sortKey)}
+                  dragging={dragKey === c.key}
+                  dropSide={dropTarget?.key === c.key ? dropTarget.side : null}
+                  onDragStart={() => setDragKey(c.key)}
+                  onDragOverSide={(side) => {
+                    if (dragKey && dragKey !== c.key) setDropTarget({ key: c.key, side })
+                  }}
+                  onDrop={() => {
+                    if (dragKey && dropTarget) reorder(dragKey, dropTarget.key, dropTarget.side)
+                    setDragKey(null)
+                    setDropTarget(null)
+                  }}
+                  onDragEnd={() => {
+                    setDragKey(null)
+                    setDropTarget(null)
+                  }}
+                  onNudge={(delta) => nudge(c.key, delta)}
+                />
+              ))}
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredSorted.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-10">
+                <TableCell colSpan={shownColumns.length + 1} className="text-center text-sm text-muted-foreground py-10">
                   {rows.length === 0
                     ? 'No saved properties yet. Click "Add new property" to get started.'
                     : 'No properties match the current filters.'}
                 </TableCell>
               </TableRow>
             )}
-            {paged.map(({ row, rating, status, noi, totalCourts, paybackYears }) => (
+            {paged.map((entry) => {
+              const { row, status } = entry
+              return (
               <TableRow
                 key={row.id}
                 className={`cursor-pointer hover:bg-white/[0.03] ${
@@ -347,51 +432,14 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
                 }`}
                 onClick={() => onView(row)}
               >
-                <TableCell className="font-medium max-w-md">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onInterestedChange(row.id, !row.interested)
-                      }}
-                      aria-pressed={!!row.interested}
-                      title={row.interested ? 'Remove from interested' : 'Mark as interested'}
-                      className={`shrink-0 inline-flex items-center rounded-md p-0.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
-                        row.interested
-                          ? 'text-amber-300 hover:text-amber-200'
-                          : 'text-muted-foreground/40 hover:text-foreground'
-                      }`}
-                    >
-                      <Star className={`size-4 ${row.interested ? 'fill-current' : ''}`} />
-                    </button>
-                    <span className="truncate">{row.label || row.address || 'Untitled'}</span>
-                    {status !== 'active' && <StatusBadge status={status} />}
-                    {row.address && (
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.address)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        title="Open in Google Maps"
-                        className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        <MapPin className="size-3.5" />
-                      </a>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <RatingBadge rating={rating} />
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{fmtMoney(noi)}</TableCell>
-                <TableCell className="text-right tabular-nums">{totalCourts}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  {paybackYears !== null ? `${paybackYears.toFixed(1)} yr` : '—'}
-                </TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground text-xs">
-                  {formatDate(row.created_at)}
-                </TableCell>
+                {shownColumns.map((c) => (
+                  <Cell
+                    key={c.key}
+                    column={c}
+                    entry={entry}
+                    onInterestedChange={onInterestedChange}
+                  />
+                ))}
                 <TableCell
                   className="text-right"
                   onClick={(e) => e.stopPropagation() /* prevent row click when using menu */}
@@ -446,7 +494,8 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+              )
+            })}
           </TableBody>
         </Table>
       </div>
@@ -502,30 +551,222 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
   )
 }
 
+/** One rendered row's worth of data — the raw row plus recomputed analysis. */
+interface EnrichedRow {
+  row: PropertyRow
+  rating: Rating
+  status: PropertyStatus
+  noi: number
+  totalCourts: number
+  paybackYears: number | null
+  region: Region | null
+  totalSqft: number | null
+  clearHeight: number | null
+  rentPerSqftYr: number | null
+}
+
+/** Renders a single body cell for whichever column is visible at this position. */
+function Cell({
+  column,
+  entry,
+  onInterestedChange,
+}: {
+  column: ColumnDef
+  entry: EnrichedRow
+  onInterestedChange: (id: string, interested: boolean) => void
+}) {
+  const { row, rating, status, noi, totalCourts, paybackYears } = entry
+  const numeric = 'text-right tabular-nums'
+
+  switch (column.key) {
+    case 'label':
+      return (
+        <TableCell className="font-medium max-w-md">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onInterestedChange(row.id, !row.interested)
+              }}
+              aria-pressed={!!row.interested}
+              title={row.interested ? 'Remove from interested' : 'Mark as interested'}
+              className={`shrink-0 inline-flex items-center rounded-md p-0.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
+                row.interested
+                  ? 'text-amber-300 hover:text-amber-200'
+                  : 'text-muted-foreground/40 hover:text-foreground'
+              }`}
+            >
+              <Star className={`size-4 ${row.interested ? 'fill-current' : ''}`} />
+            </button>
+            <span className="truncate">{row.label || row.address || 'Untitled'}</span>
+            {status !== 'active' && <StatusBadge status={status} />}
+            {row.address && (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.address)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title="Open in Google Maps"
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <MapPin className="size-3.5" />
+              </a>
+            )}
+          </div>
+        </TableCell>
+      )
+    case 'rating':
+      return (
+        <TableCell>
+          <RatingBadge rating={rating} />
+        </TableCell>
+      )
+    case 'status':
+      return (
+        <TableCell>
+          <StatusBadge status={status} />
+        </TableCell>
+      )
+    case 'noi':
+      return <TableCell className={numeric}>{fmtMoney(noi)}</TableCell>
+    case 'courts':
+      return <TableCell className={numeric}>{totalCourts}</TableCell>
+    case 'payback':
+      return (
+        <TableCell className={numeric}>
+          {paybackYears !== null ? `${paybackYears.toFixed(1)} yr` : '—'}
+        </TableCell>
+      )
+    case 'sqft':
+      return (
+        <TableCell className={numeric}>
+          {entry.totalSqft !== null ? entry.totalSqft.toLocaleString() : '—'}
+        </TableCell>
+      )
+    case 'height':
+      return (
+        <TableCell className={numeric}>
+          {entry.clearHeight !== null ? `${entry.clearHeight} ft` : '—'}
+        </TableCell>
+      )
+    case 'rent':
+      return (
+        <TableCell className={numeric}>
+          {entry.rentPerSqftYr !== null ? `$${entry.rentPerSqftYr.toFixed(2)}` : '—'}
+        </TableCell>
+      )
+    case 'region':
+      return (
+        <TableCell className="text-muted-foreground text-xs">{entry.region ?? '—'}</TableCell>
+      )
+    case 'created':
+      return (
+        <TableCell className={`${numeric} text-muted-foreground text-xs`}>
+          {formatDate(row.created_at)}
+        </TableCell>
+      )
+  }
+}
+
+/** Sorts missing values last when ascending, matching the original payback rule. */
+function cmpNullable(a: number | null, b: number | null): number {
+  return (a ?? Infinity) - (b ?? Infinity)
+}
+
+/** Sort keys whose natural first click is ascending (text, or "good is low"). */
+const TEXT_SORT_KEYS = new Set<SortKey>(['label', 'rating', 'status', 'region'])
+
+/**
+ * A sortable, drag-reorderable column header.
+ *
+ * Dragging uses native HTML5 drag-and-drop (no dependency); since that's not
+ * keyboard-operable, Alt+Left/Right on the focused header moves the column too.
+ */
 function SortHeader({
-  label,
+  column,
   active,
   dir,
   onClick,
-  align = 'left',
+  dragging,
+  dropSide,
+  onDragStart,
+  onDragOverSide,
+  onDrop,
+  onDragEnd,
+  onNudge,
 }: {
-  label: string
+  column: ColumnDef
   active: boolean
   dir: SortDir
   onClick: () => void
-  align?: 'left' | 'right'
+  dragging: boolean
+  dropSide: 'before' | 'after' | null
+  onDragStart: () => void
+  onDragOverSide: (side: 'before' | 'after') => void
+  onDrop: () => void
+  onDragEnd: () => void
+  onNudge: (delta: -1 | 1) => void
 }) {
   const Icon = !active ? ArrowUpDown : dir === 'asc' ? ArrowUp : ArrowDown
+  const alignRight = column.align === 'right'
+
   return (
-    <TableHead className={align === 'right' ? 'text-right' : ''}>
-      <button
-        type="button"
-        onClick={onClick}
-        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : 'text-muted-foreground'}`}
-      >
-        {label}
-        <Icon className="size-3.5" />
-      </button>
+    <TableHead
+      draggable
+      onDragStart={(e) => {
+        // Firefox refuses to start a drag without data on the transfer.
+        e.dataTransfer.setData('text/plain', column.key)
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStart()
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        const box = e.currentTarget.getBoundingClientRect()
+        onDragOverSide(e.clientX < box.left + box.width / 2 ? 'before' : 'after')
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        onDrop()
+      }}
+      onDragEnd={onDragEnd}
+      className={[
+        'group relative cursor-grab select-none active:cursor-grabbing',
+        alignRight ? 'text-right' : '',
+        dragging ? 'opacity-40' : '',
+        // Drop indicator: a rule on the edge the column would land against.
+        dropSide === 'before' ? 'shadow-[inset_2px_0_0_0_var(--color-primary)]' : '',
+        dropSide === 'after' ? 'shadow-[inset_-2px_0_0_0_var(--color-primary)]' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <span className={`inline-flex items-center gap-1 ${alignRight ? 'flex-row-reverse' : ''}`}>
+        <GripVertical
+          aria-hidden
+          className="size-3 shrink-0 text-muted-foreground/0 transition-colors group-hover:text-muted-foreground/60"
+        />
+        <button
+          type="button"
+          onClick={onClick}
+          onKeyDown={(e) => {
+            if (!e.altKey) return
+            if (e.key === 'ArrowLeft') {
+              e.preventDefault()
+              onNudge(-1)
+            } else if (e.key === 'ArrowRight') {
+              e.preventDefault()
+              onNudge(1)
+            }
+          }}
+          title={`Sort by ${column.label} — drag, or Alt+←/→, to reorder`}
+          className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? 'text-foreground' : 'text-muted-foreground'}`}
+        >
+          {column.label}
+          <Icon className="size-3.5" />
+        </button>
+      </span>
     </TableHead>
   )
 }
