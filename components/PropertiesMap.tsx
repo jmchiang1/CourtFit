@@ -737,15 +737,23 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
     }
     let active = true
     setIsoLoading(true)
-    getIsochrone(selectedCenter.lat, selectedCenter.lng, driveMinutes).then((ring) => {
-      // Only cache successful rings — caching a null (e.g. a transient Mapbox
-      // failure, or the token not yet loaded) would permanently disable the
-      // overlay for this marker until a page reload. Let failures retry.
-      if (ring) isoCache.current[key] = ring
-      if (!active) return
-      setLiveRing(ring)
-      setIsoLoading(false)
-    })
+    getIsochrone(selectedCenter.lat, selectedCenter.lng, driveMinutes)
+      // The action itself can reject (server error, network blip) on top of
+      // resolving null. Without this the promise rejects unhandled and the
+      // overlay hangs in "loading" forever, hiding the unavailable notice.
+      .catch((err) => {
+        console.warn('[isochrone] lookup failed:', err)
+        return null
+      })
+      .then((ring) => {
+        // Only cache successful rings — caching a null (e.g. a transient Mapbox
+        // failure, or the token not yet loaded) would permanently disable the
+        // overlay for this marker until a page reload. Let failures retry.
+        if (ring) isoCache.current[key] = ring
+        if (!active) return
+        setLiveRing(ring)
+        setIsoLoading(false)
+      })
     return () => {
       active = false
     }
