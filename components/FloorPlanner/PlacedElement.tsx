@@ -287,10 +287,10 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
           </div>
         )}
         <div
-          className="pointer-events-none absolute left-1 top-0.5 select-none font-mono text-[9px] font-semibold leading-tight"
+          className="pointer-events-none absolute left-1 top-0.5 max-w-[calc(100%-8px)] truncate select-none font-mono text-[9px] font-semibold leading-tight"
           style={{ color: c.color, textShadow: "0 1px 2px rgba(244,241,234,.7)" }}
         >
-          {c.short}
+          {item.label ?? c.short}
         </div>
       </>
     );
@@ -309,7 +309,7 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
       >
         {!linear && w > 34 && (
           <span className="pointer-events-none select-none px-1 text-center text-[8px] font-medium leading-none text-white/95">
-            {it.label}
+            {item.label ?? it.label}
           </span>
         )}
       </div>

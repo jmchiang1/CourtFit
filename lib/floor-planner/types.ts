@@ -30,7 +30,8 @@ export interface PlacedItem {
   yFt: number
   rotated: boolean // 90° rotation (courts & furniture)
   // Optional resize override (footprint feet). Any element is resizable;
-  // when unset the catalogue default size is used. Rooms also carry a label.
+  // when unset the catalogue default size is used. `label` is an optional
+  // per-piece name override — unset means "use the catalogue label".
   wFt?: number
   hFt?: number
   label?: string

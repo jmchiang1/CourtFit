@@ -130,7 +130,7 @@ export default function Palette() {
       </div>
 
       <div className="border-t border-[#232a34] px-3 py-2 text-[10px] leading-relaxed text-neutral-600">
-        Click to add · drag to place · handles resize
+        Click to add · drag to place · handles resize · select to rename
       </div>
     </aside>
   );

@@ -55,7 +55,11 @@ interface PlannerState {
   duplicateItems: (ids: string[]) => void;
   removeItem: (id: string) => void;
   removeItems: (ids: string[]) => void;
-  renameRoom: (id: string, label: string) => void;
+  /**
+   * Set a piece's display name. Any piece can be named, not just rooms; an
+   * empty name clears the override and falls back to the catalogue label.
+   */
+  renameItem: (id: string, label: string) => void;
   /** Select exactly one item, or clear when passed null. */
   select: (id: string | null) => void;
   /** Add/remove one item from the current selection (shift-click). */
@@ -234,9 +238,11 @@ export const usePlanner = create<PlannerState>((set, get) => {
         select: null,
       }),
 
-    renameRoom: (id, label) =>
+    renameItem: (id, label) =>
+      // Only an empty string clears the override — a name mid-typing may well
+      // be all spaces, and trimming here would eat the keystroke.
       commit((items) =>
-        items.map((it) => (it.id === id ? { ...it, label } : it)),
+        items.map((it) => (it.id === id ? { ...it, label: label === "" ? undefined : label } : it)),
       ),
 
     moveItems: (updates) =>

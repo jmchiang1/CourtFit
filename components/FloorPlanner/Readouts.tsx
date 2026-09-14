@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { COURTS, CourtKey, ITEMS, ROOMS } from "@/lib/floor-planner/config";
+import { COURTS, CourtKey, defaultLabel } from "@/lib/floor-planner/config";
 import type { Diagnosis, Tally, WarningKind } from "@/lib/floor-planner/geometry";
 import { usePlanner } from "@/lib/floor-planner/store";
 
@@ -48,7 +48,7 @@ export default function Readouts({ tally, diag }: Props) {
     rotateItems,
     duplicateItems,
     removeItems,
-    renameRoom,
+    renameItem,
     select,
   } = usePlanner();
 
@@ -73,13 +73,9 @@ export default function Readouts({ tally, diag }: Props) {
     [tally],
   );
 
-  const selLabel = selected
-    ? selected.category === "court"
-      ? COURTS[selected.type as CourtKey].label
-      : selected.category === "item"
-        ? ITEMS[selected.type as keyof typeof ITEMS].label
-        : selected.label ?? ROOMS[selected.type as keyof typeof ROOMS].label
-    : "";
+  // The catalogue name, shown under the name field so a renamed piece still
+  // says what it actually is.
+  const selKind = selected ? defaultLabel(selected.category, selected.type) : "";
 
   const pct = usableFt2 > 0 ? (tally.courtAreaFt2 / usableFt2) * 100 : 0;
 
@@ -135,15 +131,19 @@ export default function Readouts({ tally, diag }: Props) {
               </button>
             </div>
 
-            {selected.category === "room" ? (
-              <input
-                value={selected.label ?? ROOMS[selected.type as keyof typeof ROOMS].label}
-                onChange={(e) => renameRoom(selected.id, e.target.value)}
-                className="mb-2 w-full rounded-md border border-[#232a34] bg-[#0d1117] px-2 py-1 text-[13px] text-neutral-100 outline-none focus:border-sky-500"
-              />
-            ) : (
-              <div className="mb-2 text-sm font-medium text-neutral-100">{selLabel}</div>
-            )}
+            {/* Any piece can be renamed; clearing the field restores the
+                catalogue name. */}
+            <input
+              value={selected.label ?? ""}
+              placeholder={selKind}
+              onChange={(e) => renameItem(selected.id, e.target.value)}
+              onBlur={(e) => renameItem(selected.id, e.target.value.trim())}
+              aria-label="Piece name"
+              className="w-full rounded-md border border-[#232a34] bg-[#0d1117] px-2 py-1 text-[13px] text-neutral-100 outline-none placeholder:text-neutral-500 focus:border-sky-500"
+            />
+            <div className="mb-2 mt-1 truncate text-[10px] uppercase tracking-wide text-neutral-500">
+              {selKind}
+            </div>
 
             {selWarnings.length > 0 && (
               <ul className="mb-2 space-y-1">

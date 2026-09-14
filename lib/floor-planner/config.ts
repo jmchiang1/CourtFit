@@ -129,13 +129,24 @@ export const ROOMS = {
   office: { label: "Office", w: 14, h: 12, fill: "#6b7bb0", icon: "🗄" },
   locker: { label: "Locker room", w: 22, h: 16, fill: "#4a8c7a", icon: "🚿" },
   storage: { label: "Storage", w: 12, h: 10, fill: "#8a8577", icon: "📦" },
-  lobby: { label: "Lobby / reception", w: 30, h: 20, fill: "#2f8f6e", icon: "🛋" },
+  lobby: { label: "Lobby / reception", w: 30, h: 20, fill: "#2f8f6e", icon: "🛎" },
+  lounge: { label: "Lounge area", w: 24, h: 18, fill: "#c08a2e", icon: "🛋" },
   tenant: { label: "Tenant / unit", w: 40, h: 30, fill: "#b4531f", icon: "🏬" },
 } as const;
 
 export type RoomKey = keyof typeof ROOMS;
 
 export type Category = "court" | "item" | "room";
+
+/**
+ * The catalogue name for any piece — the fallback whenever a placed item has no
+ * custom `label` of its own.
+ */
+export function defaultLabel(category: Category, type: string): string {
+  if (category === "court") return COURTS[type as CourtKey].label;
+  if (category === "item") return ITEMS[type as ItemKey].label;
+  return ROOMS[type as RoomKey].label;
+}
 
 /** Look up the base (un-rotated) footprint of any catalogue entry, in feet. */
 export function baseFootprint(
