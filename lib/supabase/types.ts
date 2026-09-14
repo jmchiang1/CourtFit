@@ -40,12 +40,26 @@ export interface PropertyRow {
   condition_json: ConditionAssessment | null
   condition_at: string | null
   /**
-   * Per-property floor plan ({ building, zones, footprintMode, items }). Optional
-   * so demo rows and any row read before the 0008_layout migration fall back to
-   * a freshly seeded layout. Null until the user opens the planner and saves.
+   * Legacy per-property floor plan, from before plans became standalone rows in
+   * `floor_plans` (migration 0011). Read-only now — kept so the 0011 backfill
+   * and any un-migrated row still type-check. New plans are `FloorPlanRow`s.
    */
   layout_json?: FloorPlanLayout | null
   layout_updated_at?: string | null
+}
+
+/**
+ * A saved floor plan. Standalone — a plan belongs to the user, not to a single
+ * listing. `property_id` records which listing (if any) seeded its envelope.
+ */
+export interface FloorPlanRow {
+  id: string
+  user_id: string
+  created_at: string
+  updated_at: string
+  name: string
+  property_id: string | null
+  layout_json: FloorPlanLayout
 }
 
 /** A competitor/reference facility the user added from the map. */

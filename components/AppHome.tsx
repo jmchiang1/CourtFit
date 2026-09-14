@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { Plus, List, Map as MapIcon } from 'lucide-react'
+import { Plus, List, Map as MapIcon, LayoutDashboard } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DashboardTable } from '@/components/DashboardTable'
 import { PropertiesMap } from '@/components/PropertiesMap'
 import { EditorSheet } from '@/components/EditorSheet'
 import { VerdictModal } from '@/components/VerdictModal'
-import { FloorPlannerOverlay } from '@/components/FloorPlanner/FloorPlannerOverlay'
+import { FloorPlansTab } from '@/components/FloorPlans/FloorPlansTab'
 import { BookmarkletHelper } from '@/components/BookmarkletHelper'
 import { listProperties } from '@/app/actions/list-properties'
 import { listDemoProperties } from '@/app/actions/demo-properties'
@@ -23,10 +23,9 @@ import { listReferenceFacilities } from '@/app/actions/reference-facilities'
 import { buildCompetitorSites } from '@/lib/competition'
 import { DEMO_PROPERTIES } from '@/lib/demo-data'
 import type { PropertyRow, ReferenceFacilityRow } from '@/lib/supabase/types'
-import type { FloorPlanLayout } from '@/lib/floor-planner/types'
 
 type EditorState = { row?: PropertyRow; importedText?: string } | null
-type View = 'list' | 'map'
+type View = 'list' | 'map' | 'plans'
 
 /**
  * The signed-in dashboard. In `demo` mode (a visitor who chose "Try without an
@@ -40,7 +39,6 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
   const [facilities, setFacilities] = useState<ReferenceFacilityRow[]>([])
   const [editor, setEditor] = useState<EditorState>(null)
   const [viewing, setViewing] = useState<PropertyRow | null>(null)
-  const [plannerFor, setPlannerFor] = useState<PropertyRow | null>(null)
   const [view, setView] = useState<View>('list')
   const [, startReload] = useTransition()
   // Ensures the one-time backfill of legacy rows runs only once per session.
@@ -199,15 +197,6 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
     })
   }
 
-  // A layout was saved in the floor planner — reflect it in the table, the open
-  // verdict, and the planner's own copy (same optimistic pattern as status).
-  const handleLayoutSaved = (id: string, layout: FloorPlanLayout, updatedAt: string) => {
-    const patch = { layout_json: layout, layout_updated_at: updatedAt }
-    setRows((cur) => cur.map((r) => (r.id === id ? { ...r, ...patch } : r)))
-    setViewing((cur) => (cur?.id === id ? { ...cur, ...patch } : cur))
-    setPlannerFor((cur) => (cur?.id === id ? { ...cur, ...patch } : cur))
-  }
-
   const handleDelete = (id: string) => {
     if (demo) {
       setRows((cur) => cur.filter((r) => r.id !== id))
@@ -227,7 +216,9 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
     <main className="max-w-[95vw] mx-auto w-full px-4 sm:px-6 py-4">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Properties</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {view === 'plans' ? 'Floor plans' : 'Properties'}
+          </h1>
           {/* <p className="text-sm text-muted-foreground mt-0.5">
             {demo
               ? 'Sample properties — sign in to save your own analyses.'
@@ -247,12 +238,18 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
                 <MapIcon className="size-4" />
                 Map
               </TabsTrigger>
+              <TabsTrigger value="plans" className="gap-1.5">
+                <LayoutDashboard className="size-4" />
+                Floor plans
+              </TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button onClick={() => setEditor({ row: undefined })} className="gap-1.5">
-            <Plus className="size-4" />
-            Add property
-          </Button>
+          {view !== 'plans' && (
+            <Button onClick={() => setEditor({ row: undefined })} className="gap-1.5">
+              <Plus className="size-4" />
+              Add property
+            </Button>
+          )}
         </div>
       </div>
 
@@ -277,6 +274,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           demo={demo}
         />
       )}
+      {view === 'plans' && <FloorPlansTab properties={rows} demo={demo} />}
 
       <VerdictModal
         property={viewing}
@@ -289,17 +287,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
         onDelete={handleDelete}
         onStatusChange={handleStatusChange}
         onInterestedChange={handleInterestedChange}
-        onOpenPlanner={(row) => setPlannerFor(row)}
       />
-
-      {plannerFor && (
-        <FloorPlannerOverlay
-          property={plannerFor}
-          demo={demo}
-          onClose={() => setPlannerFor(null)}
-          onSaved={handleLayoutSaved}
-        />
-      )}
 
       <EditorSheet
         initial={editor}

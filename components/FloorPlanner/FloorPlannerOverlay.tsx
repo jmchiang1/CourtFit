@@ -1,27 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import FloorPlanner from './FloorPlanner'
 import { usePlanner } from '@/lib/floor-planner/store'
-import { normalizeLayout, seedLayoutFromListing } from '@/lib/floor-planner/seed'
-import { saveLayout } from '@/app/actions/save-layout'
 import type { FloorPlanLayout } from '@/lib/floor-planner/types'
-import type { PropertyRow } from '@/lib/supabase/types'
 
 interface Props {
-  property: PropertyRow
-  /** Demo mode is local-only — don't hit the server. */
-  demo?: boolean
+  /** Identity of the plan being edited; changing it reloads the editor. */
+  planKey: string
+  /** The layout to open — a saved plan, or a freshly seeded one. */
+  layout: FloorPlanLayout
+  /**
+   * Persist the current layout. Resolve with an error message to surface it and
+   * leave the plan dirty; resolve with nothing to mark it saved.
+   */
+  onSave: (layout: FloorPlanLayout) => Promise<{ error?: string } | void>
   onClose: () => void
-  onSaved: (id: string, layout: FloorPlanLayout, updatedAt: string) => void
 }
 
 /**
- * Full-screen floor-plan editor for a single property. Seeds a fresh plan from
- * the listing (size + clear height) the first time, then persists to
- * `properties.layout_json`.
+ * Full-screen floor-plan editor. Owns only the save/dirty plumbing — the plan
+ * itself lives in the planner store, and where it gets persisted is the
+ * caller's business.
  */
-export function FloorPlannerOverlay({ property, demo = false, onClose, onSaved }: Props) {
+export function FloorPlannerOverlay({ planKey, layout, onSave, onClose }: Props) {
   const init = usePlanner((s) => s.init)
   const serialize = usePlanner((s) => s.serialize)
   const markSaved = usePlanner((s) => s.markSaved)
@@ -29,35 +31,35 @@ export function FloorPlannerOverlay({ property, demo = false, onClose, onSaved }
   const [ready, setReady] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // `layout` is only the *initial* value — re-running init on every render
+  // would wipe the user's edits, so load it once per plan.
+  const layoutRef = useRef(layout)
+  layoutRef.current = layout
 
-  // Load the saved plan (or seed a new one) whenever the target property changes.
   useEffect(() => {
-    const existing = normalizeLayout(property.layout_json)
-    init(existing ?? seedLayoutFromListing(property.listing_json, property.label))
+    init(layoutRef.current)
     setReady(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [property.id])
+  }, [planKey, init])
 
   const handleSave = async () => {
     setSaving(true)
     setError(null)
-    const layout = serialize()
-
-    if (demo) {
-      markSaved()
-      onSaved(property.id, layout, new Date().toISOString())
-      setSaving(false)
-      return
-    }
-
-    const res = await saveLayout(property.id, layout)
+    const res = await onSave(serialize())
     setSaving(false)
-    if ('error' in res) {
-      setError(res.error ?? 'Failed to save')
+    if (res && 'error' in res && res.error) {
+      setError(res.error)
       return
     }
     markSaved()
-    onSaved(property.id, layout, res.layoutUpdatedAt)
+  }
+
+  // Closing with unsaved work now loses a whole plan, not just a property's
+  // panel — so confirm first.
+  const handleClose = () => {
+    if (usePlanner.getState().dirty && !confirm('Discard unsaved changes to this floor plan?')) {
+      return
+    }
+    onClose()
   }
 
   if (!ready) return null
@@ -69,7 +71,7 @@ export function FloorPlannerOverlay({ property, demo = false, onClose, onSaved }
           {error}
         </div>
       )}
-      <FloorPlanner onClose={onClose} onSave={handleSave} saving={saving} />
+      <FloorPlanner onClose={handleClose} onSave={handleSave} saving={saving} />
     </div>
   )
 }

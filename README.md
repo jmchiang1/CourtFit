@@ -35,6 +35,9 @@ It uses the Kotofit franchise model assumptions out of the box:
 - **Deterministic-template summary** as a fallback for the AI summary
 - **Editable assumptions** — all 23 model parameters
 - **Saved properties** via Supabase + magic-link auth
+- **Floor plans** — a top-level tab: draw courts, rooms, and furniture to scale in a
+  full-screen planner, then save, rename, duplicate, and re-edit plans. A new plan can
+  size its envelope from any saved listing's square footage and clear height.
 - **JSON export**
 
 ---
@@ -64,7 +67,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...             # optional; unlocks save/load
 ### Supabase setup (only if you want save/load)
 
 1. Create a project at https://supabase.com
-2. SQL Editor → run `supabase/migrations/0001_properties.sql`
+2. SQL Editor → run every file in `supabase/migrations/` in filename order (`0001_properties.sql` first)
 3. Authentication → URL Configuration → add `http://localhost:3000/api/auth/callback` (and your production URL's callback) to Redirect URLs
 
 ---
