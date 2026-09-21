@@ -53,8 +53,9 @@ export async function addReferenceFacility(
   if (!address) return { error: 'Address is required.' }
   if (sports.length === 0) return { error: 'Pick at least one sport.' }
 
-  const point = await geocodeAddress(address)
-  if (!point) return { error: "Couldn't find that address on the map." }
+  const geocoded = await geocodeAddress(address)
+  if (!geocoded.ok) return { error: "Couldn't find that address on the map." }
+  const point = geocoded.point
 
   const demographics = await fetchDemographics(point.lat, point.lng)
   const now = new Date().toISOString()
@@ -116,8 +117,9 @@ export async function updateReferenceFacility(
   }
 
   if (!existing || existing.address !== address) {
-    const point = await geocodeAddress(address)
-    if (!point) return { error: "Couldn't find that address on the map." }
+    const geocoded = await geocodeAddress(address)
+    if (!geocoded.ok) return { error: "Couldn't find that address on the map." }
+    const point = geocoded.point
     const now = new Date().toISOString()
     geo = { latitude: point.lat, longitude: point.lng, geocoded_at: now }
     const demographics = await fetchDemographics(point.lat, point.lng)

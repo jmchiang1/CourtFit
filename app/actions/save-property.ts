@@ -85,9 +85,14 @@ export async function saveProperty(input: SaveInput) {
   }
 
   if (needsGeocode) {
-    const point = await geocodeAddress(input.address)
-    if (point) {
-      geo = { latitude: point.lat, longitude: point.lng, geocoded_at: new Date().toISOString() }
+    const geocoded = await geocodeAddress(input.address)
+    if (geocoded.ok) {
+      const { lat, lng } = geocoded.point
+      geo = { latitude: lat, longitude: lng, geocoded_at: new Date().toISOString() }
+    } else if (!geocoded.retryable) {
+      // Google settled it: this address has no location. Stamp the attempt so
+      // the geocodeMissing backfill doesn't re-submit (and re-bill) it forever.
+      geo = { ...geo, geocoded_at: new Date().toISOString() }
     }
   }
 

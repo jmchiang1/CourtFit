@@ -29,7 +29,11 @@ export interface PropertyRow {
   noi: number | null
   total_courts: number | null
   payback_years: number | null
-  /** Cached geocode of `address` (null until geocoded). */
+  /**
+   * Cached geocode of `address`. `geocoded_at` marks the last *attempt*, not
+   * just a success — a stamp with null coords means Google settled that the
+   * address has no location, which is what stops the backfill re-billing it.
+   */
   latitude: number | null
   longitude: number | null
   geocoded_at: string | null

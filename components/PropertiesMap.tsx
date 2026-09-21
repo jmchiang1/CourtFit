@@ -492,7 +492,12 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
   // Advanced Markers require a real cloud Map ID. When one isn't configured we
   // fall back to classic colored markers so the map still works (and we avoid
   // the "initialized without a valid Map ID" warning).
-  const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID
+  //
+  // Note the `|| undefined`: a declared-but-blank env var (`…MAP_ID=`) reads as
+  // "", and @vis.gl only strips `undefined` options — so "" would be forwarded
+  // to `new google.maps.Map({ mapId: "" })`, which the Maps JS API treats as a
+  // real-but-invalid Map ID and renders as a blank map rather than ignoring.
+  const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID?.trim() || undefined
   const useAdvanced = !!mapId
 
   const [selected, setSelected] = useState<Selected>(null)
@@ -1100,6 +1105,12 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
           <APIProvider apiKey={apiKey}>
             <Map
               mapId={mapId}
+              // AppHome unmounts this whole component when you leave the Map
+              // tab, and every `new google.maps.Map()` is a billable Dynamic
+              // Maps load. `reuseMaps` parks the instance in the library's
+              // module-level cache on unmount and re-attaches it on return, so
+              // a session costs one map load however often you switch tabs.
+              reuseMaps
               defaultCenter={positions[0] ?? NYC_CENTER}
               defaultZoom={10}
               gestureHandling="greedy"
