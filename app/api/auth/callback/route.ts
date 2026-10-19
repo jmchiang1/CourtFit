@@ -6,7 +6,10 @@ export async function GET(request: Request) {
   const code = url.searchParams.get('code')
   if (code) {
     const sb = await createSupabaseServerClient()
-    await sb.auth.exchangeCodeForSession(code)
+    const { error } = await sb.auth.exchangeCodeForSession(code)
+    if (error) console.error('[auth/callback] code exchange failed:', error.message)
+  } else if (url.searchParams.get('error')) {
+    console.error('[auth/callback] provider error:', url.searchParams.get('error_description'))
   }
   return NextResponse.redirect(new URL('/', url))
 }

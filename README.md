@@ -34,7 +34,7 @@ It uses the Kotofit franchise model assumptions out of the box:
 - **Regex fallback parser** when AI isn't available
 - **Deterministic-template summary** as a fallback for the AI summary
 - **Editable assumptions** — all 23 model parameters
-- **Saved properties** via Supabase + magic-link auth
+- **Saved properties** via Supabase + Google sign-in (Supabase OAuth)
 - **Floor plans** — a top-level tab: draw courts, rooms, and furniture to scale in a
   full-screen planner, then save, rename, duplicate, and re-edit plans. A new plan can
   size its envelope from any saved listing's square footage and clear height.
@@ -69,6 +69,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...             # optional; unlocks save/load
 1. Create a project at https://supabase.com
 2. SQL Editor → run every file in `supabase/migrations/` in filename order (`0001_properties.sql` first)
 3. Authentication → URL Configuration → add `http://localhost:3000/api/auth/callback` (and your production URL's callback) to Redirect URLs
+4. Google Cloud Console → APIs & Services → Credentials → create an OAuth client ID (Web application) with authorized redirect URI `https://<project-ref>.supabase.co/auth/v1/callback`
+5. Supabase → Authentication → Sign In / Providers → Google → enable it and paste the client ID and secret
 
 ---
 
@@ -115,7 +117,7 @@ app/
   page.tsx               Single-page UI: input → form → assumptions → dashboard
   layout.tsx             Header + WindowName tag (for bookmarklet tab-reuse)
   actions/               Server Actions (Anthropic, Supabase, fetch URL)
-  api/auth/callback/     Magic-link OAuth callback
+  api/auth/callback/     Supabase OAuth callback
 
 components/              UI (form, panels, dashboard, header, bookmarklet helper)
   Dashboard/             KPI cards, court fit, risk flags, summary, financial chart
