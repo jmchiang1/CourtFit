@@ -45,15 +45,15 @@ export interface ColumnDef {
 }
 
 export const COLUMNS: ColumnDef[] = [
-  { key: 'label', label: 'Address / Label', sortKey: 'label', locked: true, defaultVisible: true },
+  { key: 'label', label: 'Address', sortKey: 'label', locked: true, defaultVisible: true },
   { key: 'rating', label: 'Rating', sortKey: 'rating', defaultVisible: true },
   { key: 'status', label: 'Status', sortKey: 'status', defaultVisible: false },
   { key: 'noi', label: 'NOI', sortKey: 'noi', align: 'right', defaultVisible: true },
   { key: 'courts', label: 'Courts', sortKey: 'total_courts', align: 'right', defaultVisible: true },
   { key: 'payback', label: 'Payback', sortKey: 'payback_years', align: 'right', defaultVisible: true },
-  { key: 'sqft', label: 'Total Sqft', sortKey: 'total_sqft', align: 'right', defaultVisible: false },
-  { key: 'height', label: 'Clear Height', sortKey: 'clear_height', align: 'right', defaultVisible: false },
-  { key: 'rent', label: 'Rent $/sqft', sortKey: 'rent_per_sqft', align: 'right', defaultVisible: false },
+  { key: 'sqft', label: 'Total sq ft', sortKey: 'total_sqft', align: 'right', defaultVisible: false },
+  { key: 'height', label: 'Clear height', sortKey: 'clear_height', align: 'right', defaultVisible: false },
+  { key: 'rent', label: 'Rent per sq ft', sortKey: 'rent_per_sqft', align: 'right', defaultVisible: false },
   { key: 'region', label: 'Region', sortKey: 'region', defaultVisible: false },
   { key: 'created', label: 'Added', sortKey: 'created_at', align: 'right', defaultVisible: true },
 ]

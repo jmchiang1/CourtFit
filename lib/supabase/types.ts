@@ -73,7 +73,7 @@ export interface ReferenceFacilityRow {
   created_at: string
   name: string
   address: string
-  /** Sport tags; values match the `Sport` union ('Badminton' | 'Pickleball'). */
+  /** Sport tags (`Sport` union). New rows always include 'Badminton'; older rows may list 'Pickleball' — only rows with 'Badminton' count as competitors. */
   sports: string[]
   latitude: number | null
   longitude: number | null

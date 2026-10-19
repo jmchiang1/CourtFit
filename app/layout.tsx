@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Archivo, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { WindowName } from "@/components/WindowName";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
-const inter = Inter({
+// Variable Archivo with the width axis, so headings can run semi-expanded
+// (see the `font-display` utility in globals.css).
+const archivo = Archivo({
   variable: "--font-sans",
   subsets: ["latin"],
+  axes: ["wdth"],
   display: "swap",
 });
 
@@ -16,8 +20,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CourtFit — Racket Sport Facility Analyzer",
-  description: "Evaluate commercial properties for badminton & pickleball facility viability",
+  title: "CourtFit — Badminton Facility Analyzer",
+  description: "Evaluate commercial properties for badminton club viability",
 };
 
 export default function RootLayout({
@@ -28,11 +32,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${archivo.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-screen bg-background text-foreground antialiased flex flex-col">
-        <WindowName name="kotofit-app" />
-        {children}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <WindowName name="kotofit-app" />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

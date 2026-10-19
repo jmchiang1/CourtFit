@@ -43,8 +43,9 @@ export function makeZone(widthFt: number, ceilingFt: number): ZoneDef {
     ceilingFt,
     badmintonOk: ceilingFt >= 24,
     outdoor: false,
-    fill: "#6b727a14",
-    stroke: "#7c8590",
+    // CSS colors (consumed as inline styles), so they follow the light/dark theme.
+    fill: "color-mix(in oklab, var(--muted-foreground) 5%, transparent)",
+    stroke: "var(--muted-foreground)",
   };
 }
 
@@ -63,7 +64,7 @@ export const COURTS = {
     play: { w: 44, h: 20 }, // painted doubles lines, 13.4 m × 6.1 m (20 × 44)
     footprint: { w: 50.5, h: 23.3 }, // full court mat, 15.4 m × 7.1 m (23.3 × 50.5)
     minCeilingFt: 24, // 24 ft min; 26–30+ for club play; BWF intl ≈ 39 ft
-    color: "#5a8a3c",
+    color: "var(--court-fill)",
   },
   pickleball: {
     label: "Pickleball — court",
@@ -71,7 +72,7 @@ export const COURTS = {
     play: { w: 44, h: 20 }, // painted lines (20 × 44)
     footprint: { w: 44, h: 22 }, // court itself only (22 × 44)
     minCeilingFt: 18,
-    color: "#2f6db0",
+    color: "var(--pickle-fill)",
   },
   pickleballRec: {
     label: "Pickleball — rec",
@@ -79,7 +80,7 @@ export const COURTS = {
     play: { w: 44, h: 20 },
     footprint: { w: 52, h: 24 }, // recommended recreational spacing (24 × 52)
     minCeilingFt: 18,
-    color: "#2f6db0",
+    color: "var(--pickle-fill)",
   },
   pickleballPro: {
     label: "Pickleball — tournament",
@@ -87,7 +88,7 @@ export const COURTS = {
     play: { w: 44, h: 20 },
     footprint: { w: 60, h: 30 }, // official tournament dims incl. edges (30 × 60)
     minCeilingFt: 18,
-    color: "#2f6db0",
+    color: "var(--pickle-fill)",
   },
   tennis: {
     label: "Tennis",
@@ -95,27 +96,34 @@ export const COURTS = {
     play: { w: 78, h: 36 }, // doubles court
     footprint: { w: 120, h: 60 }, // recommended total court incl. run-back/side
     minCeilingFt: 30, // indoor clearance over the court
-    color: "#b4531f",
+    color: "#a65a2e",
   },
 } as const;
 
 export type CourtKey = keyof typeof COURTS;
 
+/**
+ * Element colors are CSS color strings (hex or `var(--…)`), used only in inline
+ * styles / SVG. Consumers derive tints with `color-mix()`, never by appending a
+ * hex alpha, so theme vars work here. Hexes are mid-tones that read on both the
+ * light and the dark floor.
+ */
+
 /** Furniture & barriers. `linear` items are thin (nets/fences/glass). */
 export const ITEMS = {
-  reception: { label: "Reception", w: 12, h: 4, color: "#0f6e56" },
+  reception: { label: "Reception", w: 12, h: 4, color: "#2f8f6e" },
   sofa: { label: "Lounge sofa", w: 8, h: 3, color: "#c78a2a" },
-  table: { label: "Café table", w: 4, h: 4, color: "#e6cd93", round: true },
-  proshop: { label: "Pro shop", w: 9, h: 3, color: "#9a978c" },
-  lockers: { label: "Lockers", w: 9, h: 2.5, color: "#9a978c" },
-  bench: { label: "Bench", w: 8, h: 1.6, color: "#9a978c" },
-  bleacher: { label: "Bleachers", w: 15, h: 6, color: "#9a978c" },
-  plant: { label: "Plant", w: 3, h: 3, color: "#5a8a3c", round: true },
-  net: { label: "Court net", w: 22, h: 0.8, color: "#3b6d11", linear: true },
-  fence: { label: "Fence panel", w: 20, h: 0.9, color: "#2b2c28", linear: true },
-  glass: { label: "Viewing glass", w: 20, h: 0.6, color: "#7fb0d8", linear: true },
-  entry: { label: "Entry / door", w: 6, h: 2, color: "#c0392b" },
-  vending: { label: "Vending", w: 4, h: 2.5, color: "#9a978c" },
+  table: { label: "Café table", w: 4, h: 4, color: "#c9a55c", round: true },
+  proshop: { label: "Pro shop", w: 9, h: 3, color: "#8a8f88" },
+  lockers: { label: "Lockers", w: 9, h: 2.5, color: "#8a8f88" },
+  bench: { label: "Bench", w: 8, h: 1.6, color: "#8a8f88" },
+  bleacher: { label: "Bleachers", w: 15, h: 6, color: "#8a8f88" },
+  plant: { label: "Plant", w: 3, h: 3, color: "#4f9a5c", round: true },
+  net: { label: "Court net", w: 22, h: 0.8, color: "var(--court)", linear: true },
+  fence: { label: "Fence panel", w: 20, h: 0.9, color: "var(--muted-foreground)", linear: true },
+  glass: { label: "Viewing glass", w: 20, h: 0.6, color: "#6fa3d6", linear: true },
+  entry: { label: "Entry / door", w: 6, h: 2, color: "#c8503f" },
+  vending: { label: "Vending", w: 4, h: 2.5, color: "#8a8f88" },
 } as const;
 
 export type ItemKey = keyof typeof ITEMS;

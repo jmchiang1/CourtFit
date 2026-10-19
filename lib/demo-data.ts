@@ -119,7 +119,6 @@ export const DEMO_PROPERTIES: PropertyRow[] = [
         adult18to64Share: 0.67,
       },
       badmintonFit: { score: 89, label: 'Strong' },
-      pickleballFit: { score: 61, label: 'Moderate' },
       fetchedAt: FETCHED_AT,
     },
     {
@@ -141,7 +140,7 @@ export const DEMO_PROPERTIES: PropertyRow[] = [
       ],
       compliance: [
         { key: 'co-use', label: 'Certificate of Occupancy / use', status: 'attention', detail: 'M1-1 allows indoor recreation, but an Assembly change-of-use amendment to the CO is required.' },
-        { key: 'clear-height', label: 'Clear height', status: 'ok', detail: "32' comfortably clears badminton (20') and pickleball (18')." },
+        { key: 'clear-height', label: 'Clear height', status: 'ok', detail: "32' comfortably clears badminton's 20' minimum." },
         { key: 'sprinkler', label: 'Fire sprinkler', status: 'risk', detail: 'None present; NYC Assembly occupancy requires a full system + fire alarm.' },
         { key: 'egress', label: 'Egress / occupant load', status: 'attention', detail: 'Verify two remote exits sized for projected occupant load.' },
         { key: 'parking', label: 'Parking', status: 'ok', detail: '40 on-site spaces adequate for the modeled court count.' },
@@ -193,7 +192,6 @@ export const DEMO_PROPERTIES: PropertyRow[] = [
         adult18to64Share: 0.69,
       },
       badmintonFit: { score: 58, label: 'Moderate' },
-      pickleballFit: { score: 78, label: 'Strong' },
       fetchedAt: FETCHED_AT,
     },
     {
@@ -267,13 +265,12 @@ export const DEMO_PROPERTIES: PropertyRow[] = [
         adult18to64Share: 0.61,
       },
       badmintonFit: { score: 41, label: 'Weak' },
-      pickleballFit: { score: 72, label: 'Strong' },
       fetchedAt: FETCHED_AT,
     },
     {
       scope: 'heavy',
       summary:
-        "Affluent, pickleball-leaning suburb with ample parking, but the 17' clear height is below badminton's 20' requirement — this site is realistically pickleball-only, and confirming true deck-to-joist height is the first diligence item.",
+        "Affluent suburb with ample parking, but the 17' clear height is below badminton's 20' requirement — unless true deck-to-joist height turns out higher, this site is likely a pass.",
       confidence: 'low',
       imageCount: 4,
       systems: [
@@ -281,7 +278,7 @@ export const DEMO_PROPERTIES: PropertyRow[] = [
         { key: 'electrical', condition: 'fair', multiplier: 0.9, note: 'Service may need upsizing for HVAC + lighting load.' },
         { key: 'lighting', condition: 'poor', multiplier: 1.2, note: 'Low-mounted fixtures; re-layout around the lower ceiling.' },
         { key: 'plumbing', condition: 'fair', multiplier: 0.7, note: 'Single restroom core; expansion likely required.' },
-        { key: 'flooring', condition: 'poor', multiplier: 1.2, note: 'Bare slab — pickleball surface and line marking needed.' },
+        { key: 'flooring', condition: 'poor', multiplier: 1.2, note: 'Bare slab — court mats and line marking needed.' },
         { key: 'walls', condition: 'fair', multiplier: 0.6, note: 'Dated finishes; cosmetic refresh.' },
         { key: 'office', condition: 'fair', multiplier: 0.5, note: '1,500 sf office; reconfigure for reception.' },
         { key: 'bathrooms', condition: 'poor', multiplier: 1.1, note: 'Below Assembly fixture counts — add restrooms.' },
@@ -289,7 +286,7 @@ export const DEMO_PROPERTIES: PropertyRow[] = [
       ],
       compliance: [
         { key: 'co-use', label: 'Certificate of Occupancy / use', status: 'attention', detail: 'Nassau / Town of North Hempstead change-of-use and site-plan review likely required.' },
-        { key: 'clear-height', label: 'Clear height', status: 'risk', detail: "17' is below badminton's 20' minimum — pickleball-only unless height can be gained." },
+        { key: 'clear-height', label: 'Clear height', status: 'risk', detail: "17' is below badminton's 20' minimum — not viable unless height can be gained." },
         { key: 'sprinkler', label: 'Fire sprinkler', status: 'risk', detail: 'None present; required for Assembly occupancy.' },
         { key: 'egress', label: 'Egress / occupant load', status: 'attention', detail: 'Confirm two compliant exits for the recreation occupant load.' },
         { key: 'parking', label: 'Parking', status: 'ok', detail: 'Ample on-site lot — a real advantage for a suburban operator.' },

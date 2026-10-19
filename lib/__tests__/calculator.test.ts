@@ -1,189 +1,178 @@
 import { describe, it, expect } from 'vitest'
-import { calculateCourts } from '../calculator'
-import { DEFAULT_ASSUMPTIONS } from '../constants'
+import {
+  calculateAnalysis,
+  calculateCourts,
+  calculateRevenue,
+  calculatePaybackYears,
+  conditionFactor,
+} from '../calculator'
+import { DEFAULT_ASSUMPTIONS, EMPTY_LISTING, resolveAssumptions } from '../constants'
+import type { ConditionAssessment } from '@/types/condition'
+
+// The reference facility from the owner's workbook (V15_Cash_Flow_Projections):
+// 8,000 SF in New Hyde Park at $25 base + $10 NNN, five courts. Expected figures
+// are the workbook's Year 3 (stabilized) column.
+const WORKBOOK_LISTING = {
+  ...EMPTY_LISTING,
+  address: 'New Hyde Park reference site',
+  totalSqft: 8_000,
+  warehouseSqft: 8_000,
+  clearHeight: 28,
+  rentPerSqftYr: 25,
+}
 
 describe('calculateCourts', () => {
-  it('returns 3 badminton + 1 pickleball for 10,000 sf warehouse with default assumptions', () => {
-    const result = calculateCourts(10_000, DEFAULT_ASSUMPTIONS)
-    expect(result).toEqual({ badminton: 3, pickleball: 1, total: 4 })
+  it('fits 5 courts in 8,000 SF (80% usable ÷ 1,200 SF per court)', () => {
+    expect(calculateCourts(8_000, DEFAULT_ASSUMPTIONS)).toEqual({ badminton: 5, total: 5 })
   })
 
-  it('returns all zeros when warehouseSqft is 0', () => {
-    expect(calculateCourts(0, DEFAULT_ASSUMPTIONS)).toEqual({ badminton: 0, pickleball: 0, total: 0 })
+  it('rounds down partial courts', () => {
+    // 16,000 × 0.8 = 12,800 ÷ 1,200 = 10.67
+    expect(calculateCourts(16_000, DEFAULT_ASSUMPTIONS).total).toBe(10)
   })
 
-  it('returns 6 badminton + 2 pickleball for 16,000 sf warehouse', () => {
-    // usable = 12,800; bad area = 7,680 / 1,250 = 6 ; pickle area = 5,120 / 1,800 = 2
-    const result = calculateCourts(16_000, DEFAULT_ASSUMPTIONS)
-    expect(result).toEqual({ badminton: 6, pickleball: 2, total: 8 })
+  it('returns zero for an empty floor', () => {
+    expect(calculateCourts(0, DEFAULT_ASSUMPTIONS)).toEqual({ badminton: 0, total: 0 })
   })
 })
 
-import { calculateRevenue } from '../calculator'
+describe('calculateRevenue (workbook year 3)', () => {
+  const r = calculateRevenue(5, DEFAULT_ASSUMPTIONS)
 
-describe('calculateRevenue', () => {
-  it('matches spec example for 3 badminton + 1 pickleball', () => {
-    // bad: 3 * 45 * 42 * 52 = 294,840
-    // pickle: 1 * 55 * 38 * 52 = 108,680
-    // court: 403,520
-    // other: 403,520 * 0.18 = 72,633.6
-    // gross: 476,153.6
-    const result = calculateRevenue({ badminton: 3, pickleball: 1, total: 4 }, DEFAULT_ASSUMPTIONS)
-    expect(result.badminton).toBe(294_840)
-    expect(result.pickleball).toBe(108_680)
-    expect(result.other).toBeCloseTo(72_633.6, 5)
-    expect(result.gross).toBeCloseTo(476_153.6, 5)
+  it('matches each revenue line', () => {
+    expect(r.courtRental).toBeCloseTo(694_200, 0)
+    expect(r.openPlay).toBeCloseTo(30_888 + 86_486, -1) // passes + drop-ins
+    expect(r.coaching).toBeCloseTo(46_800, 0)
+    expect(r.proShop).toBeCloseTo(24_347, 0)
+    expect(r.foodBeverage).toBeCloseTo(24_347, 0)
+    expect(r.cardSurcharge).toBeCloseTo(27_212, 0)
+    expect(r.gross).toBeCloseTo(934_281, 0)
   })
 
-  it('returns zeros for zero courts', () => {
-    const result = calculateRevenue({ badminton: 0, pickleball: 0, total: 0 }, DEFAULT_ASSUMPTIONS)
-    expect(result).toEqual({ badminton: 0, pickleball: 0, other: 0, gross: 0 })
+  it('scales every line with the booking ramp', () => {
+    const half = calculateRevenue(5, DEFAULT_ASSUMPTIONS, 0.5)
+    expect(half.gross).toBeCloseTo(r.gross / 2, 6)
   })
 })
 
-import { calculateExpenses } from '../calculator'
+describe('calculateAnalysis against the workbook', () => {
+  const result = calculateAnalysis({ listing: WORKBOOK_LISTING, assumptions: DEFAULT_ASSUMPTIONS })
 
-describe('calculateExpenses', () => {
-  it('matches spec example: 12,500 sf @ $20/sf, gross $476,153.6', () => {
-    const result = calculateExpenses({
-      totalSqft: 12_500,
-      rentPerSqftYr: 20,
-      grossRevenue: 476_153.6,
+  it('matches cost of sales and operating expenses', () => {
+    expect(result.costOfSales.total).toBeCloseTo(17_043 + 12_174, -1)
+    expect(result.expenses.rent).toBe(280_000)
+    expect(result.expenses.coach).toBeCloseTo(28_080, 0)
+    expect(result.expenses.utilities).toBeCloseTo(24_000 + 4_800 + 1_200 + 1_680, 0)
+    expect(result.expenses.repairs).toBeCloseTo(8_800 + 4_671, 0)
+    expect(result.expenses.insurance).toBeCloseTo(6_500 + 3_600, 0)
+    expect(result.expenses.admin).toBeCloseTo(11_837 + 8_640, 0)
+    expect(result.expenses.marketing).toBe(6_000)
+    expect(result.expenses.cardProcessing).toBeCloseTo(28_028, 0)
+    expect(result.expenses.contingency).toBeCloseTo(9_343, 0)
+  })
+
+  it('lands within the 3% salary escalation of the workbook year-3 income before debt service', () => {
+    // Workbook Y3: gross profit $905,064 − opex excl. SBA ($587,255 − $100,916)
+    // = $418,725. The model holds salary at year-one dollars ($3,310 lower).
+    expect(result.noi).toBeCloseTo(418_725 + 3_310, -2)
+  })
+
+  it('matches the total cost to open (~$1.01M)', () => {
+    expect(result.startupCost.mid).toBeGreaterThan(1_005_000)
+    expect(result.startupCost.mid).toBeLessThan(1_015_000)
+    const line = (l: string) => result.startupCost.breakdown.find((b) => b.label === l)?.amount
+    expect(line('Buildout')).toBe(480_000)
+    expect(line('Permits & architecture')).toBe(70_000)
+    expect(line('Court equipment')).toBe(30_000)
+    expect(line('Security deposit')).toBe(70_000)
+  })
+
+  it('pays back in about 2.4 years and rates as a strong candidate', () => {
+    expect(result.paybackYears).toBeCloseTo(2.4, 1)
+    expect(result.rating).toBe('Strong Candidate')
+  })
+
+  it('projects a thinner year one at the 65% ramp with launch marketing', () => {
+    expect(result.yearOne.revenue).toBeCloseTo(result.revenue.gross * 0.65, 0)
+    expect(result.yearOne.noi).toBeLessThan(result.noi)
+  })
+})
+
+describe('scaling to other buildings', () => {
+  it('doubles per-court and per-SF lines for a building twice the size', () => {
+    const small = calculateAnalysis({ listing: WORKBOOK_LISTING, assumptions: DEFAULT_ASSUMPTIONS })
+    const big = calculateAnalysis({
+      listing: { ...WORKBOOK_LISTING, totalSqft: 16_000, warehouseSqft: 16_000 },
       assumptions: DEFAULT_ASSUMPTIONS,
     })
-    expect(result.rent).toBe(250_000)
-    expect(result.payroll).toBeCloseTo(39_603.2, 5)        // 17 * 40 * 52 * 1.12
-    expect(result.utilities).toBe(56_250)                   // 12,500 * 4.5
-    expect(result.insurance).toBe(15_625)                   // 12,500 * 1.25
-    expect(result.maintenance).toBe(28_125)                 // 12,500 * 2.25
-    expect(result.royalty).toBeCloseTo(33_330.752, 5)       // gross * 0.07
-    expect(result.marketing).toBeCloseTo(11_903.84, 5)      // gross * 0.025
-    expect(result.miscAdmin).toBeCloseTo(9_523.072, 5)      // gross * 0.02
-    expect(result.total).toBeCloseTo(444_360.864, 3)
+    expect(big.courts.total).toBe(10)
+    expect(big.revenue.gross).toBeCloseTo(small.revenue.gross * 2, 0)
+    expect(big.expenses.rent).toBe(small.expenses.rent * 2)
+    expect(big.expenses.utilities).toBeCloseTo(small.expenses.utilities * 2, 6)
+    // Owner salary and admin stay fixed, so margin improves with size.
+    expect(big.expenses.payroll).toBe(small.expenses.payroll)
+    expect(big.noiMargin).toBeGreaterThan(small.noiMargin)
   })
 
-  it('handles missing rent as zero', () => {
-    const result = calculateExpenses({
-      totalSqft: 12_500,
-      rentPerSqftYr: null,
-      grossRevenue: 0,
+  it('uses the estimated base rent when the listing has none', () => {
+    const r = calculateAnalysis({
+      listing: { ...WORKBOOK_LISTING, rentPerSqftYr: null },
       assumptions: DEFAULT_ASSUMPTIONS,
     })
-    expect(result.rent).toBe(0)
+    expect(r.expenses.rent).toBe(280_000) // $25 estimate + $10 NNN
+  })
+
+  it('returns zero revenue and no payback for an empty listing', () => {
+    const r = calculateAnalysis({ listing: EMPTY_LISTING, assumptions: DEFAULT_ASSUMPTIONS })
+    expect(r.revenue.gross).toBe(0)
+    expect(r.paybackYears).toBeNull()
+    expect(r.rating).toBe('Incomplete')
   })
 })
 
-import { calculateStartupCost, calculatePaybackYears } from '../calculator'
+describe('condition-adjusted buildout', () => {
+  const systems = (multiplier: number): ConditionAssessment => ({
+    scope: 'heavy',
+    summary: '',
+    confidence: 'medium',
+    imageCount: 3,
+    systems: (
+      ['hvac', 'electrical', 'lighting', 'plumbing', 'flooring', 'walls', 'office', 'bathrooms', 'fireSprinkler'] as const
+    ).map((key) => ({ key, condition: 'poor', multiplier, note: '' })),
+    compliance: [],
+    assessedAt: '2026-10-19T00:00:00Z',
+  })
 
-describe('calculateStartupCost', () => {
-  it('detailed breakdown for spec example (12,500 sf / 10K warehouse / 2.5K office / 4 courts)', () => {
-    const r = calculateStartupCost({
-      totalSqft: 12_500,
-      warehouseSqft: 10_000,
-      officeSqft: 2_500,
-      totalCourts: 4,
-      a: DEFAULT_ASSUMPTIONS,
+  it('is neutral without an assessment and scales with the systems', () => {
+    expect(conditionFactor(null)).toBe(1)
+    expect(conditionFactor(systems(1.5))).toBeCloseTo(1.5, 6)
+    const r = calculateAnalysis({
+      listing: WORKBOOK_LISTING,
+      assumptions: DEFAULT_ASSUMPTIONS,
+      condition: systems(1.5),
     })
-    // HVAC 100k + Electrical 62.5k + Court lighting 40k + Plumbing 37.5k +
-    // Court flooring 50k + Walls 37.5k + Office buildout 100k +
-    // Bathrooms 30k + Court equipment 10k = subtotal 467,500
-    // Permits 8% = 37,400; Contingency 12% = 56,100
-    // Total ren = 561,000; + franchise 40k = 601,000
-    expect(r.mid).toBe(601_000)
-    expect(r.low).toBeCloseTo(601_000 * 0.85, 2)
-    expect(r.high).toBeCloseTo(601_000 * 1.30, 2)
-    expect(r.breakdown.find(b => b.label === 'HVAC')?.amount).toBe(100_000)
-    expect(r.breakdown.find(b => b.label === 'Bathrooms')?.amount).toBe(30_000)
-    expect(r.breakdown.find(b => b.label === 'Franchise fee')?.amount).toBe(40_000)
+    expect(r.startupCost.breakdown.find((b) => b.label === 'Buildout')?.amount).toBeCloseTo(720_000, 0)
+    expect(r.startupCost.baselineMid).toBeLessThan(r.startupCost.mid)
+  })
+})
+
+describe('resolveAssumptions', () => {
+  it('ignores assumptions saved under the old badminton + pickleball model', () => {
+    const legacy = { badmintonCourtSqft: 1250, pickleballMixPct: 0.4, usableCourtAreaPct: 0.5 }
+    expect(resolveAssumptions(legacy)).toEqual(DEFAULT_ASSUMPTIONS)
+  })
+
+  it('keeps edits saved under the current model', () => {
+    expect(resolveAssumptions({ ...DEFAULT_ASSUMPTIONS, peakRate: 80 }).peakRate).toBe(80)
   })
 })
 
 describe('calculatePaybackYears', () => {
-  it('returns startupMid / noi when noi > 0', () => {
+  it('divides cost to open by income', () => {
     expect(calculatePaybackYears(390_000, 100_000)).toBe(3.9)
   })
-  it('returns null when noi is zero', () => {
+  it('is null when income is zero or negative', () => {
     expect(calculatePaybackYears(390_000, 0)).toBeNull()
-  })
-  it('returns null when noi is negative', () => {
-    expect(calculatePaybackYears(390_000, -1000)).toBeNull()
-  })
-})
-
-import { calculateAnalysis } from '../calculator'
-import { EMPTY_LISTING } from '../constants'
-
-describe('calculateAnalysis (orchestrator)', () => {
-  it('returns the spec example end-to-end (without rating/flags/summary, those come later)', () => {
-    const result = calculateAnalysis({
-      listing: {
-        ...EMPTY_LISTING,
-        address: '91-15 139th St',
-        totalSqft: 12_500,
-        warehouseSqft: 10_000,
-        officeSqft: 2_500,
-        clearHeight: 20,
-        rentPerSqftYr: 20,
-      },
-      assumptions: DEFAULT_ASSUMPTIONS,
-    })
-
-    expect(result.courts).toEqual({ badminton: 3, pickleball: 1, total: 4 })
-    expect(result.revenue.gross).toBeCloseTo(476_153.6, 3)
-    expect(result.expenses.total).toBeCloseTo(444_360.864, 3)
-    expect(result.noi).toBeCloseTo(31_792.736, 3)
-    expect(result.noiMargin).toBeCloseTo(0.0668, 3)
-    expect(result.rentBurden).toBeCloseTo(0.525, 3)
-    expect(result.monthlyRent).toBeCloseTo(20_833.33, 2)
-    expect(result.monthlyRevenue).toBeCloseTo(39_679.47, 2)
-    expect(result.revenuePerSqft).toBeCloseTo(38.09, 2)
-    expect(result.startupCost.mid).toBe(601_000)
-    expect(result.paybackYears).toBeCloseTo(601_000 / 31_792.736, 2)
-  })
-
-  it('falls back to totalSqft when warehouseSqft is null', () => {
-    const result = calculateAnalysis({
-      listing: { ...EMPTY_LISTING, totalSqft: 10_000, warehouseSqft: null, rentPerSqftYr: 20 },
-      assumptions: DEFAULT_ASSUMPTIONS,
-    })
-    expect(result.courts.total).toBeGreaterThan(0)
-  })
-
-  it('returns zero-revenue when totalSqft is null', () => {
-    const result = calculateAnalysis({
-      listing: { ...EMPTY_LISTING },
-      assumptions: DEFAULT_ASSUMPTIONS,
-    })
-    expect(result.revenue.gross).toBe(0)
-    expect(result.noi).toBeLessThanOrEqual(0)
-  })
-})
-
-describe('calculateAnalysis (full result)', () => {
-  it('produces the full result with rating + flags + fallback summary for spec example', () => {
-    const result = calculateAnalysis({
-      listing: {
-        ...EMPTY_LISTING,
-        address: '91-15 139th St, Jamaica, NY 11435',
-        totalSqft: 12_500,
-        warehouseSqft: 10_000,
-        officeSqft: 2_500,
-        clearHeight: 20,
-        rentPerSqftYr: 20,
-        zoning: 'M1-1',
-      },
-      assumptions: DEFAULT_ASSUMPTIONS,
-    })
-
-    // Spec example: slow payback (~12yr) + thin margin (~7%) → Risky.
-    // High rent burden is surfaced as a flag, not a rating downgrade.
-    expect(result.rating).toBe('Risky')
-    const flagIds = result.riskFlags.map(f => f.id)
-    expect(flagIds).toContain('low-clear-height')
-    expect(flagIds).toContain('too-few-courts')
-    expect(flagIds).toContain('high-rent-burden')
-    expect(flagIds).toContain('office-space')
-    expect(flagIds).toContain('zoning')
-    expect(result.summary).toMatch(/Risky/)
+    expect(calculatePaybackYears(390_000, -1)).toBeNull()
   })
 })

@@ -20,6 +20,7 @@ import { KpiCards } from '@/components/Dashboard/KpiCards'
 import { CourtFitPanel } from '@/components/Dashboard/CourtFitPanel'
 import { PropertyDetailsPanel } from '@/components/Dashboard/PropertyDetailsPanel'
 import { FinancialBreakdown } from '@/components/Dashboard/FinancialBreakdown'
+import { StartupCostBreakdown } from '@/components/Dashboard/StartupCostBreakdown'
 import { RiskFlagsPanel } from '@/components/Dashboard/RiskFlagsPanel'
 import { SummaryPanel } from '@/components/Dashboard/SummaryPanel'
 import { CompetitionPanel } from '@/components/Dashboard/CompetitionPanel'
@@ -31,7 +32,7 @@ import { useMemo, type ReactNode } from 'react'
 import { PhotoStrip } from './PhotoStrip'
 import type { PropertyRow } from '@/lib/supabase/types'
 import { calculateAnalysis } from '@/lib/calculator'
-import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
+import { resolveAssumptions } from '@/lib/constants'
 import {
   PROPERTY_STATUSES,
   STATUS_META,
@@ -75,7 +76,7 @@ export function VerdictModal({
       },
       // Merge with defaults so old saved properties (missing the new
       // renovation-breakdown fields) still compute correctly.
-      assumptions: { ...DEFAULT_ASSUMPTIONS, ...property.assumptions_json },
+      assumptions: resolveAssumptions(property.assumptions_json),
       // Condition assessment (when present) scales the renovation estimate.
       condition: property.condition_json,
     })
@@ -98,7 +99,7 @@ export function VerdictModal({
               <CourtFitPanel
                 result={result}
                 listing={property.listing_json}
-                assumptions={property.assumptions_json}
+                assumptions={resolveAssumptions(property.assumptions_json)}
               />
             ),
           },
@@ -116,6 +117,11 @@ export function VerdictModal({
             key: 'financials',
             label: 'Revenue & expenses',
             node: <FinancialBreakdown result={result} />,
+          },
+          {
+            key: 'cost-to-open',
+            label: 'Cost to open',
+            node: <StartupCostBreakdown result={result} />,
           },
         ],
       },
@@ -135,7 +141,6 @@ export function VerdictModal({
                 lat={property.latitude}
                 lng={property.longitude}
                 demographics={property.demographics_json}
-                assumptions={{ ...DEFAULT_ASSUMPTIONS, ...property.assumptions_json }}
                 sites={sites}
               />
             ),
@@ -172,7 +177,7 @@ export function VerdictModal({
     >
       <DialogContent
         showCloseButton={false}
-        className="verdict-modal sm:max-w-5xl max-h-[90vh] overflow-y-auto overflow-x-hidden"
+        className="verdict-modal bg-background sm:max-w-5xl max-h-[90vh] overflow-y-auto overflow-x-hidden"
       >
         <DialogHeader className="min-w-0">
           <div className="flex items-center justify-between gap-3 min-w-0">
@@ -222,7 +227,7 @@ export function VerdictModal({
                         className="shrink-0 inline-flex items-center gap-1 rounded-full outline-none hover:opacity-80 transition-opacity focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         {property.interested && (
-                          <Star className="size-3.5 fill-current text-amber-300" />
+                          <Star className="size-3.5 fill-current text-caution" />
                         )}
                         <StatusBadge status={status} />
                         <ChevronDown className="size-3 text-muted-foreground" />
@@ -321,7 +326,7 @@ export function VerdictModal({
                           onDelete(property.id)
                         }
                       }}
-                      className="text-rose-300"
+                      variant="destructive"
                     >
                       <Trash2 className="size-4" /> Delete
                     </DropdownMenuItem>
@@ -350,7 +355,7 @@ export function VerdictModal({
                 sourceUrl={property.listing_json.sourceUrl}
               />
             )}
-            <VerdictHero result={result} address={property.address} />
+            <VerdictHero result={result} />
             <KpiCards result={result} />
 
             {/* Detail grouped into labeled, two-up sections. Empty (fully
@@ -386,18 +391,13 @@ export function VerdictModal({
 }
 
 /**
- * A labeled detail group: a small section header + divider, then its panels laid
+ * A labeled detail group: a sentence-case heading, then its panels laid
  * out two-up (stacking on smaller widths).
  */
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="space-y-3 min-w-0">
-      <div className="flex items-center gap-3">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {label}
-        </h3>
-        <div className="h-px flex-1 bg-border" />
-      </div>
+      <h3 className="font-display text-sm font-semibold text-foreground">{label}</h3>
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 min-w-0">{children}</div>
     </section>
   )
@@ -433,7 +433,7 @@ function PanelCell({
         onClick={onHide}
         aria-label={`Hide ${label}`}
         title={`Hide "${label}" on all properties`}
-        className="absolute right-2 top-2 z-10 hidden size-7 items-center justify-center rounded-md bg-card/90 text-muted-foreground ring-1 ring-border backdrop-blur transition-colors group-hover/panel:flex hover:text-foreground"
+        className="absolute right-2 top-2 z-10 hidden size-7 items-center justify-center rounded-md bg-panel text-muted-foreground shadow-xs ring-1 ring-border transition-colors group-hover/panel:flex hover:bg-muted hover:text-foreground"
       >
         <EyeOff className="size-3.5" />
       </button>

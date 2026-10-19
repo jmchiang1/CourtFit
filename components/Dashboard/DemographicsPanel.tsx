@@ -1,38 +1,44 @@
 import { fmtMoney, fmtPct } from '@/lib/format'
+import { DRIVE_MINUTES } from '@/lib/catchment'
 import type { Demographics, FitLabel } from '@/types/demographics'
 
-const fitTone: Record<FitLabel, { text: string; chip: string; bar: string }> = {
-  Strong: { text: 'text-emerald-300', chip: 'bg-emerald-400/10 ring-1 ring-emerald-400/25', bar: 'bg-emerald-400' },
-  Moderate: { text: 'text-amber-300', chip: 'bg-amber-400/10 ring-1 ring-amber-400/25', bar: 'bg-amber-400' },
-  Weak: { text: 'text-rose-300', chip: 'bg-rose-400/10 ring-1 ring-rose-400/25', bar: 'bg-rose-400' },
+const fitTone: Record<FitLabel, { text: string; bar: string }> = {
+  Strong: { text: 'text-good', bar: 'bg-good' },
+  Moderate: { text: 'text-caution', bar: 'bg-caution' },
+  Weak: { text: 'text-risk', bar: 'bg-risk' },
 }
 
-function FitCard({
-  sport,
+/** Single badminton demand score: number on the left, bar + context on the right. */
+function FitScoreRow({
+  title,
   score,
   label,
   hint,
 }: {
-  sport: string
+  title: string
   score: number
   label: FitLabel
   hint: string
 }) {
   const t = fitTone[label]
   return (
-    <div className={`rounded-lg px-4 py-3 ${t.chip}`}>
-      <div className="flex items-baseline justify-between">
-        <span className="text-sm font-medium">{sport}</span>
-        <span className={`text-xs font-semibold ${t.text}`}>{label}</span>
+    <div className="flex items-center gap-5 py-3">
+      <div className="shrink-0">
+        <div className="text-sm font-medium text-foreground">{title}</div>
+        <div className="mt-1 flex items-baseline gap-1.5">
+          <span className="font-display text-2xl font-semibold tabular-nums text-foreground">{score}</span>
+          <span className="text-xs text-muted-foreground">/ 100</span>
+        </div>
       </div>
-      <div className="mt-1 flex items-baseline gap-1.5">
-        <span className={`text-2xl font-semibold tabular-nums ${t.text}`}>{score}</span>
-        <span className="text-xs text-muted-foreground">/ 100</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2 text-xs">
+          <span className="min-w-0 leading-snug text-muted-foreground">{hint}</span>
+          <span className={`shrink-0 font-medium ${t.text}`}>{label}</span>
+        </div>
+        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${score}%` }} />
+        </div>
       </div>
-      <div className="mt-2 h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
-        <div className={`h-full ${t.bar}`} style={{ width: `${score}%` }} />
-      </div>
-      <div className="text-[11px] text-muted-foreground mt-1.5 leading-snug">{hint}</div>
     </div>
   )
 }
@@ -42,12 +48,12 @@ function ShareRow({ label, count, share }: { label: string; count: number; share
     <div>
       <div className="flex items-baseline justify-between text-xs">
         <span className="text-muted-foreground">{label}</span>
-        <span className="tabular-nums">
+        <span className="tabular-nums text-foreground">
           {fmtPct(share)} <span className="text-muted-foreground">· {count.toLocaleString()}</span>
         </span>
       </div>
-      <div className="mt-1 h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
-        <div className="h-full bg-white/40" style={{ width: `${Math.min(100, share * 100)}%` }} />
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-primary/60" style={{ width: `${Math.min(100, share * 100)}%` }} />
       </div>
     </div>
   )
@@ -57,8 +63,8 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
   if (!demographics) {
     return (
       <div className="surface p-5">
-        <h3 className="text-sm font-semibold tracking-tight mb-3">Demand — trade area</h3>
-        <div className="rounded-lg border border-dashed border-white/10 px-4 py-6 text-center">
+        <h3 className="font-display text-sm font-semibold text-foreground mb-3">Demand — trade area</h3>
+        <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
           <div className="text-sm text-muted-foreground">Demographics not available yet.</div>
           <div className="text-xs text-muted-foreground mt-1">
             They’re fetched automatically once the property has a mappable address.
@@ -71,39 +77,31 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
   const d = demographics
   const e = d.ethnicity
   const isDrive = d.mode === 'drive'
-  const cb = d.catchments?.badminton
-  const cp = d.catchments?.pickleball
-  const driveSuffix = (min: number | undefined) => (min ? ` · ${min}-min drive` : '')
+  const driveMinutes = d.catchments?.badminton.driveMinutes ?? DRIVE_MINUTES
 
   return (
     <div className="surface p-5">
-      <div className="flex items-baseline justify-between mb-4">
-        <h3 className="text-sm font-semibold tracking-tight">
-          {isDrive ? 'Demand — drive-time catchment' : `Demand — ${d.radiusMiles}-mile radius`}
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="font-display text-sm font-semibold text-foreground">
+          {isDrive ? `Demand — ${driveMinutes}-min drive` : `Demand — ${d.radiusMiles}-mile radius`}
         </h3>
         <span className="text-xs text-muted-foreground tabular-nums">
           {d.totalPopulation.toLocaleString()} people · {d.tractCount} tracts · ACS {d.vintage}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        <FitCard
-          sport="Badminton"
+      <div className="mb-4 border-y border-border">
+        <FitScoreRow
+          title="Badminton demand"
           score={d.badmintonFit.score}
           label={d.badmintonFit.label}
-          hint={`${fmtPct((cb?.ethnicity ?? e).targetShare)} East + South Asian${driveSuffix(cb?.driveMinutes)}`}
-        />
-        <FitCard
-          sport="Pickleball"
-          score={d.pickleballFit.score}
-          label={d.pickleballFit.label}
-          hint={`${fmtPct((cp?.age ?? d.age).adult18to64Share)} aged 18–64${driveSuffix(cp?.driveMinutes)}`}
+          hint={`${fmtPct(e.targetShare)} East + South Asian · ${fmtPct(d.age.prime18to44Share)} aged 18–44`}
         />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
         <div className="space-y-2.5">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          <div className="text-xs font-medium text-foreground">
             Target communities
           </div>
           <ShareRow label="East Asian" count={e.eastAsian} share={e.eastAsianShare} />
@@ -112,38 +110,36 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
         </div>
 
         <div className="space-y-2.5">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Income & age
+          <div className="text-xs font-medium text-foreground">
+            Income &amp; age
           </div>
           <div className="flex items-baseline justify-between text-xs">
             <span className="text-muted-foreground">Mean household income</span>
-            <span className="tabular-nums">
+            <span className="tabular-nums text-foreground">
               {d.meanHouseholdIncome != null ? fmtMoney(d.meanHouseholdIncome) : '—'}
             </span>
           </div>
           <div className="flex items-baseline justify-between text-xs">
             <span className="text-muted-foreground">Adults 18–44</span>
-            <span className="tabular-nums">{fmtPct(d.age.prime18to44Share)}</span>
+            <span className="tabular-nums text-foreground">{fmtPct(d.age.prime18to44Share)}</span>
           </div>
           <div className="flex items-baseline justify-between text-xs">
             <span className="text-muted-foreground">Adults 18–64</span>
-            <span className="tabular-nums">{fmtPct(d.age.adult18to64Share)}</span>
+            <span className="tabular-nums text-foreground">{fmtPct(d.age.adult18to64Share)}</span>
           </div>
           <div className="flex items-baseline justify-between text-xs">
             <span className="text-muted-foreground">Under 18 / 65+</span>
-            <span className="tabular-nums">
+            <span className="tabular-nums text-foreground">
               {fmtPct(d.age.under18 / d.totalPopulation)} / {fmtPct(d.age.senior65plus / d.totalPopulation)}
             </span>
           </div>
         </div>
       </div>
 
-      {isDrive && cb && cp && (
-        <p className="mt-4 text-[11px] leading-snug text-muted-foreground">
-          Catchments are driving-time isochrones. Figures above cover the badminton{' '}
-          {cb.driveMinutes}-min catchment ({cb.totalPopulation.toLocaleString()} people); pickleball
-          demand uses a tighter {cp.driveMinutes}-min catchment ({cp.totalPopulation.toLocaleString()}{' '}
-          people).
+      {isDrive && (
+        <p className="mt-4 border-t border-border pt-3 text-xs leading-snug text-muted-foreground">
+          Figures cover the area reachable within a {driveMinutes}-minute drive — it follows roads and
+          water, not a straight-line radius.
         </p>
       )}
     </div>

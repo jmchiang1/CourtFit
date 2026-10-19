@@ -34,7 +34,7 @@ export interface AgeBands {
 
 /**
  * A single trade-area catchment — either a straight-line radius or a drive-time
- * isochrone — with the ACS figures aggregated over it and the sport's fit score.
+ * isochrone — with the ACS figures aggregated over it and the badminton fit score.
  */
 export interface Catchment {
   kind: 'radius' | 'drive'
@@ -50,7 +50,7 @@ export interface Catchment {
   meanHouseholdIncome: number | null
   ethnicity: Ethnicity
   age: AgeBands
-  /** Demand fit for the sport this catchment was computed for. */
+  /** Badminton demand fit over this catchment. */
   fit: FitScore
   /** Isochrone outer ring as [lng, lat] pairs (drive mode only) for map rendering. */
   ring?: number[][] | null
@@ -61,10 +61,13 @@ export interface Catchment {
  * estimates. Stored on the property as `demographics_json`.
  *
  * Two modes:
- *  - 'radius' (legacy / fallback): one 5-mile circle feeds both sports.
- *  - 'drive': sport-specific Mapbox driving isochrones — the top-level flat
- *    fields mirror the (wider) badminton catchment, while `catchments` carries
- *    the full per-sport breakdown + isochrone polygons.
+ *  - 'radius' (legacy / fallback): one 5-mile circle.
+ *  - 'drive': a Mapbox driving isochrone for badminton — the top-level flat
+ *    fields mirror `catchments.badminton`, which also carries the polygon.
+ *
+ * Rows written before the app went badminton-only also carry `pickleballFit`
+ * and `catchments.pickleball`. They're kept as optional, deprecated fields so
+ * those rows still type-check; nothing writes or reads them any more.
  *
  * `mode` is absent on rows written before drive-time existed; treat absent as
  * 'radius'. The flat fields below are always present so every consumer keeps
@@ -88,15 +91,16 @@ export interface Demographics {
   ethnicity: Ethnicity
   age: AgeBands
 
-  /** Demand signal for badminton (ethnicity-weighted), over its own catchment. */
+  /** Demand signal for badminton (ethnicity-weighted), over its catchment. */
   badmintonFit: FitScore
-  /** Demand signal for pickleball (broad-demographic), over its own catchment. */
-  pickleballFit: FitScore
+  /** @deprecated Legacy rows only (pre badminton-only). Never written; don't read. */
+  pickleballFit?: FitScore
 
-  /** Sport-specific drive-time catchments. Absent on legacy radius-only rows. */
+  /** Drive-time catchment. Absent on legacy radius-only rows. */
   catchments?: {
     badminton: Catchment
-    pickleball: Catchment
+    /** @deprecated Legacy rows only (pre badminton-only). Never written; don't read. */
+    pickleball?: Catchment
   }
 
   /** ISO timestamp the data was fetched. */

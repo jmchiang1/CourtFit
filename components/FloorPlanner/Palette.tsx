@@ -28,33 +28,33 @@ export default function Palette() {
   }) => (
     <button
       onClick={onClick}
-      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-neutral-200 transition hover:bg-white/5 active:bg-white/10"
+      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-foreground transition hover:bg-muted active:bg-muted/80"
     >
       {swatch}
       <span className="flex-1 truncate">{label}</span>
       {meta && (
-        <span className="font-mono text-[10px] text-neutral-500 group-hover:text-neutral-400">
+        <span className="text-[10px] tabular-nums text-muted-foreground">
           {meta}
         </span>
       )}
-      <span className="text-neutral-600 opacity-0 transition group-hover:opacity-100">+</span>
+      <span className="text-muted-foreground opacity-0 transition group-hover:opacity-100">+</span>
     </button>
   );
 
   const Header = ({ id, title }: { id: Section; title: string }) => (
     <button
       onClick={() => toggle(id)}
-      className="flex w-full items-center justify-between px-2 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 hover:text-neutral-300"
+      className="flex w-full items-center justify-between px-2 pb-1 pt-3 text-xs font-semibold text-muted-foreground hover:text-foreground"
     >
       {title}
-      <span className="text-neutral-600">{open[id] ? "−" : "+"}</span>
+      <span className="text-muted-foreground">{open[id] ? "−" : "+"}</span>
     </button>
   );
 
   const spawn = (category: Category, type: string) => addItem(category, type);
 
   return (
-    <aside className="flex h-full w-56 shrink-0 flex-col border-r border-[#232a34] bg-[#161b22]">
+    <aside className="flex h-full w-56 shrink-0 flex-col border-r border-border bg-panel">
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
         <Header id="courts" title="Courts" />
         {open.courts && (
@@ -68,7 +68,7 @@ export default function Palette() {
                   swatch={
                     <span
                       className="inline-block h-3.5 w-5 shrink-0 rounded-[2px] border"
-                      style={{ background: `${c.color}33`, borderColor: c.color }}
+                      style={{ background: c.color, borderColor: c.color }}
                     />
                   }
                   label={c.label}
@@ -101,7 +101,7 @@ export default function Palette() {
           </div>
         )}
 
-        <Header id="furniture" title="Furniture & Barriers" />
+        <Header id="furniture" title="Furniture & barriers" />
         {open.furniture && (
           <div className="space-y-0.5">
             {(Object.keys(ITEMS) as (keyof typeof ITEMS)[]).map((k) => {
@@ -115,7 +115,7 @@ export default function Palette() {
                       className="inline-block h-3.5 w-5 shrink-0 border"
                       style={{
                         background: it.color,
-                        borderColor: "rgba(0,0,0,.3)",
+                        borderColor: "color-mix(in oklab, var(--foreground) 20%, transparent)",
                         borderRadius: "round" in it && it.round ? "50%" : 2,
                       }}
                     />
@@ -129,7 +129,7 @@ export default function Palette() {
         )}
       </div>
 
-      <div className="border-t border-[#232a34] px-3 py-2 text-[10px] leading-relaxed text-neutral-600">
+      <div className="border-t border-border px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
         Click to add · drag to place · handles resize · select to rename
       </div>
     </aside>

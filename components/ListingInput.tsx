@@ -146,7 +146,7 @@ export function ListingInput({ onExtracted, headerAction }: Props) {
       ? 'Fetching URL…'
       : 'Extracting…'
     : isUrl
-      ? 'Fetch & Extract'
+      ? 'Fetch & extract'
       : 'Extract with AI'
 
   return (
@@ -165,7 +165,7 @@ export function ListingInput({ onExtracted, headerAction }: Props) {
             setText(e.target.value)
             editedRef.current = true
           }}
-          className="font-mono text-sm h-48 max-h-48 resize-none"
+          className="text-sm h-48 max-h-48 resize-none"
         />
         <div className="flex items-center gap-2">
           <Button
@@ -215,12 +215,12 @@ export function ListingInput({ onExtracted, headerAction }: Props) {
           </span>
         </div>
         {status && !warning && (
-          <p className="text-sm text-emerald-300 bg-emerald-400/10 ring-1 ring-emerald-400/20 rounded-md px-3 py-2">
+          <p className="text-sm text-good bg-good/10 ring-1 ring-inset ring-good/25 rounded-md px-3 py-2">
             {status}
           </p>
         )}
         {warning && (
-          <p className="text-sm text-amber-300 bg-amber-400/10 ring-1 ring-amber-400/20 rounded-md px-3 py-2">
+          <p className="text-sm text-caution bg-caution/10 ring-1 ring-inset ring-caution/25 rounded-md px-3 py-2">
             {warning}
           </p>
         )}

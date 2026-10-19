@@ -27,11 +27,14 @@ function Stat({
   accent?: string;
 }) {
   return (
-    <div className="rounded-lg border border-[#232a34] bg-[#0d1117] px-3 py-2">
-      <div className="font-mono text-xl font-semibold" style={{ color: accent ?? "#e6edf3" }}>
+    <div className="rounded-md bg-muted/70 px-3 py-2">
+      <div
+        className="font-display text-xl font-semibold tabular-nums"
+        style={{ color: accent ?? "var(--foreground)" }}
+      >
         {value}
       </div>
-      <div className="mt-0.5 text-[10px] uppercase tracking-wide text-neutral-500">{label}</div>
+      <div className="mt-0.5 text-xs text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -80,37 +83,37 @@ export default function Readouts({ tally, diag }: Props) {
   const pct = usableFt2 > 0 ? (tally.courtAreaFt2 / usableFt2) * 100 : 0;
 
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col border-l border-[#232a34] bg-[#161b22]">
+    <aside className="flex h-full w-72 shrink-0 flex-col border-l border-border bg-panel">
       <div className="min-h-0 flex-1 overflow-y-auto">
         {multi && (
-          <div className="border-b border-[#232a34] p-3">
+          <div className="border-b border-border p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-400">
+              <span className="font-display text-sm font-semibold text-foreground">
                 {selectedIds.length} selected
               </span>
               <button
                 onClick={() => select(null)}
-                className="text-[11px] text-neutral-500 hover:text-neutral-300"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
-                deselect
+                Deselect
               </button>
             </div>
             <div className="grid grid-cols-3 gap-1.5">
               <button
                 onClick={() => rotateItems(selectedIds)}
-                className="rounded-md border border-[#232a34] py-1.5 text-[12px] text-neutral-200 hover:bg-white/10"
+                className="rounded-md border border-border py-1.5 text-[12px] text-foreground shadow-xs transition hover:bg-muted"
               >
                 Rotate
               </button>
               <button
                 onClick={() => duplicateItems(selectedIds)}
-                className="rounded-md border border-[#232a34] py-1.5 text-[12px] text-neutral-200 hover:bg-white/10"
+                className="rounded-md border border-border py-1.5 text-[12px] text-foreground shadow-xs transition hover:bg-muted"
               >
                 Clone
               </button>
               <button
                 onClick={() => removeItems(selectedIds)}
-                className="rounded-md border border-red-500/40 py-1.5 text-[12px] text-red-300 hover:bg-red-500/15"
+                className="rounded-md border border-risk/30 py-1.5 text-[12px] text-risk shadow-xs transition hover:bg-risk/10"
               >
                 Delete
               </button>
@@ -118,16 +121,16 @@ export default function Readouts({ tally, diag }: Props) {
           </div>
         )}
         {selected && (
-          <div className="border-b border-[#232a34] p-3">
+          <div className="border-b border-border p-3">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-400">
+              <span className="font-display text-sm font-semibold text-foreground">
                 Selected
               </span>
               <button
                 onClick={() => select(null)}
-                className="text-[11px] text-neutral-500 hover:text-neutral-300"
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
-                deselect
+                Deselect
               </button>
             </div>
 
@@ -139,9 +142,9 @@ export default function Readouts({ tally, diag }: Props) {
               onChange={(e) => renameItem(selected.id, e.target.value)}
               onBlur={(e) => renameItem(selected.id, e.target.value.trim())}
               aria-label="Piece name"
-              className="w-full rounded-md border border-[#232a34] bg-[#0d1117] px-2 py-1 text-[13px] text-neutral-100 outline-none placeholder:text-neutral-500 focus:border-sky-500"
+              className="w-full rounded-md border border-input bg-background px-2 py-1 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
             />
-            <div className="mb-2 mt-1 truncate text-[10px] uppercase tracking-wide text-neutral-500">
+            <div className="mb-2 mt-1 truncate text-xs text-muted-foreground">
               {selKind}
             </div>
 
@@ -150,7 +153,7 @@ export default function Readouts({ tally, diag }: Props) {
                 {selWarnings.map((w) => (
                   <li
                     key={w}
-                    className="flex items-center gap-1.5 rounded bg-red-500/10 px-2 py-1 text-[11px] text-red-300"
+                    className="flex items-center gap-1.5 rounded bg-risk/10 px-2 py-1 text-[11px] text-risk"
                   >
                     <span>⚠</span>
                     {WARNING_LABEL[w]}
@@ -162,19 +165,19 @@ export default function Readouts({ tally, diag }: Props) {
             <div className="grid grid-cols-3 gap-1.5">
               <button
                 onClick={() => rotateItem(selected.id)}
-                className="rounded-md border border-[#232a34] py-1.5 text-[12px] text-neutral-200 hover:bg-white/10"
+                className="rounded-md border border-border py-1.5 text-[12px] text-foreground shadow-xs transition hover:bg-muted"
               >
                 Rotate
               </button>
               <button
                 onClick={() => duplicateItem(selected.id)}
-                className="rounded-md border border-[#232a34] py-1.5 text-[12px] text-neutral-200 hover:bg-white/10"
+                className="rounded-md border border-border py-1.5 text-[12px] text-foreground shadow-xs transition hover:bg-muted"
               >
                 Clone
               </button>
               <button
                 onClick={() => removeItem(selected.id)}
-                className="rounded-md border border-red-500/40 py-1.5 text-[12px] text-red-300 hover:bg-red-500/15"
+                className="rounded-md border border-risk/30 py-1.5 text-[12px] text-risk shadow-xs transition hover:bg-risk/10"
               >
                 Delete
               </button>
@@ -183,18 +186,18 @@ export default function Readouts({ tally, diag }: Props) {
         )}
 
         <div className="p-3">
-          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+          <div className="mb-2 font-display text-sm font-semibold text-foreground">
             Capacity
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Stat label="Valid courts" value={tally.totalCourts} accent="#38bdf8" />
+            <Stat label="Valid courts" value={tally.totalCourts} />
             <Stat
               label="Warnings"
               value={tally.warnings}
-              accent={tally.warnings ? "#f87171" : "#4ade80"}
+              accent={tally.warnings ? "var(--risk)" : "var(--good)"}
             />
-            <Stat label="Badminton" value={tally.badminton} accent={COURTS.badminton.color} />
-            <Stat label="Pickleball" value={tally.pickleball} accent={COURTS.pickleball.color} />
+            <Stat label="Badminton" value={tally.badminton} accent="var(--court)" />
+            <Stat label="Pickleball" value={tally.pickleball} accent="var(--info)" />
           </div>
 
           {courtRows.length > 0 && (
@@ -202,35 +205,35 @@ export default function Readouts({ tally, diag }: Props) {
               {courtRows.map((r) => (
                 <div
                   key={r.k}
-                  className="flex items-center justify-between rounded-md bg-[#0d1117] px-2.5 py-1.5 text-[12px]"
+                  className="flex items-center justify-between rounded-md bg-muted/70 px-2.5 py-1.5 text-[12px]"
                 >
-                  <span className="flex items-center gap-2 text-neutral-300">
+                  <span className="flex items-center gap-2 text-foreground/80">
                     <span
                       className="h-2.5 w-2.5 rounded-sm"
                       style={{ background: COURTS[r.k].color }}
                     />
                     {COURTS[r.k].label}
                   </span>
-                  <span className="font-mono text-neutral-400">{r.count}</span>
+                  <span className="font-medium tabular-nums text-foreground">{r.count}</span>
                 </div>
               ))}
             </div>
           )}
 
-          <div className="mt-3 rounded-lg border border-[#232a34] bg-[#0d1117] px-3 py-2">
-            <div className="flex items-center justify-between text-[12px] text-neutral-400">
+          <div className="mt-3 rounded-md bg-muted/70 px-3 py-2">
+            <div className="flex items-center justify-between text-[12px] text-muted-foreground">
               <span>Court area used</span>
-              <span className="font-mono text-neutral-200">
+              <span className="font-medium tabular-nums text-foreground">
                 {Math.round(tally.courtAreaFt2).toLocaleString()} ft²
               </span>
             </div>
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#232a34]">
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-foreground/10">
               <div
-                className="h-full rounded-full bg-sky-500 transition-[width]"
+                className="h-full rounded-full bg-primary transition-[width]"
                 style={{ width: `${Math.min(100, pct)}%` }}
               />
             </div>
-            <div className="mt-1 text-right font-mono text-[10px] text-neutral-500">
+            <div className="mt-1 text-right text-[10px] tabular-nums text-muted-foreground">
               {Math.round(pct)}% of {Math.round(usableFt2).toLocaleString()} ft² indoor
             </div>
           </div>

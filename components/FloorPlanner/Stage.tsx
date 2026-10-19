@@ -18,6 +18,10 @@ interface Props {
   zones: ZoneDef[];
 }
 
+/** Grid line colors for the floor (theme-aware). */
+const MINOR_LINE = "color-mix(in oklab, var(--border) 70%, transparent)";
+const MAJOR_LINE = "color-mix(in oklab, var(--muted-foreground) 22%, transparent)";
+
 /** Marquee rectangle in floor-local pixels while a rubber-band drag is active. */
 type Marquee = { x0: number; y0: number; x1: number; y1: number };
 
@@ -93,18 +97,18 @@ export default function Stage({ items, ppf, mode, selectedIds, diag, building, z
   return (
     <div className="inline-block p-16">
       <div
-        className="relative mx-auto mb-2 text-center font-mono text-[11px] text-neutral-400"
+        className="relative mx-auto mb-2 text-center text-[11px] tabular-nums text-muted-foreground"
         style={{ width: W }}
       >
-        <span className="rounded bg-[#161b22] px-2 py-0.5">← {building.lengthFt} ft →</span>
+        <span className="rounded bg-panel px-2 py-0.5 ring-1 ring-border">← {building.lengthFt} ft →</span>
       </div>
 
       <div className="flex items-start gap-2">
         <div
-          className="flex items-center justify-center font-mono text-[11px] text-neutral-400"
+          className="flex items-center justify-center text-[11px] tabular-nums text-muted-foreground"
           style={{ height: H, width: 20 }}
         >
-          <span className="-rotate-90 whitespace-nowrap rounded bg-[#161b22] px-2 py-0.5">
+          <span className="-rotate-90 whitespace-nowrap rounded bg-panel px-2 py-0.5 ring-1 ring-border">
             ↕ {building.widthFt} ft
           </span>
         </div>
@@ -114,16 +118,18 @@ export default function Stage({ items, ppf, mode, selectedIds, diag, building, z
           onPointerDown={onFloorPointerDown}
           onPointerMove={onFloorPointerMove}
           onPointerUp={onFloorPointerUp}
-          className="relative shrink-0 shadow-2xl ring-1 ring-black/40"
+          className="relative shrink-0 shadow-lift"
           style={{
             width: W,
             height: H,
-            backgroundColor: "#f4f1ea",
+            // Blueprint floor: the panel tone with a faint 2 ft grid and a
+            // stronger 10 ft grid, both drawn from theme tokens.
+            backgroundColor: "var(--panel)",
             backgroundImage:
-              "linear-gradient(rgba(90,110,130,.09) 1px, transparent 1px)," +
-              "linear-gradient(90deg, rgba(90,110,130,.09) 1px, transparent 1px)," +
-              "linear-gradient(rgba(90,110,130,.22) 1px, transparent 1px)," +
-              "linear-gradient(90deg, rgba(90,110,130,.22) 1px, transparent 1px)",
+              `linear-gradient(${MINOR_LINE} 1px, transparent 1px),` +
+              `linear-gradient(90deg, ${MINOR_LINE} 1px, transparent 1px),` +
+              `linear-gradient(${MAJOR_LINE} 1px, transparent 1px),` +
+              `linear-gradient(90deg, ${MAJOR_LINE} 1px, transparent 1px)`,
             backgroundSize: `${minor}px ${minor}px, ${minor}px ${minor}px, ${major}px ${major}px, ${major}px ${major}px`,
           }}
         >
@@ -141,7 +147,7 @@ export default function Stage({ items, ppf, mode, selectedIds, diag, building, z
               }}
             >
               <div
-                className="absolute left-1 top-1 select-none font-mono text-[10px] font-semibold uppercase tracking-wide"
+                className="absolute left-1 top-1 select-none text-[10px] font-semibold tabular-nums"
                 style={{ color: z.stroke }}
               >
                 {z.label}
@@ -152,7 +158,7 @@ export default function Stage({ items, ppf, mode, selectedIds, diag, building, z
                   className="absolute inset-0 opacity-40"
                   style={{
                     backgroundImage:
-                      "repeating-linear-gradient(45deg, transparent 0 6px, rgba(90,110,130,.35) 6px 7px)",
+                      "repeating-linear-gradient(45deg, transparent 0 6px, color-mix(in oklab, var(--muted-foreground) 35%, transparent) 6px 7px)",
                   }}
                 />
               )}
@@ -173,7 +179,7 @@ export default function Stage({ items, ppf, mode, selectedIds, diag, building, z
 
           {marquee && (
             <div
-              className="pointer-events-none absolute z-30 border border-sky-400 bg-sky-400/10"
+              className="pointer-events-none absolute z-30 border border-primary bg-primary/10"
               style={{
                 left: Math.min(marquee.x0, marquee.x1),
                 top: Math.min(marquee.y0, marquee.y1),
@@ -183,7 +189,8 @@ export default function Stage({ items, ppf, mode, selectedIds, diag, building, z
             />
           )}
 
-          <div className="pointer-events-none absolute inset-0 ring-2 ring-neutral-700/70" />
+          {/* exterior walls */}
+          <div className="pointer-events-none absolute inset-0 ring-2 ring-foreground/45" />
         </div>
       </div>
     </div>

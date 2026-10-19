@@ -1,5 +1,5 @@
 import type { Demographics, Catchment, Ethnicity, AgeBands } from '@/types/demographics'
-import { badmintonFit, pickleballFit } from '@/lib/fit-score'
+import { badmintonFit } from '@/lib/fit-score'
 import { fetchIsochrone } from '@/lib/isochrone'
 import { DRIVE_MINUTES } from '@/lib/catchment'
 
@@ -7,13 +7,12 @@ export { DRIVE_MINUTES }
 
 /**
  * Pull trade-area demographics for a property from the US Census ACS 5-year
- * estimates, and derive badminton / pickleball demand fit scores.
+ * estimates, and derive the badminton demand fit score.
  *
  * The catchment is defined one of two ways:
- *   - Drive-time (preferred, when MAPBOX_TOKEN is set): a per-sport Mapbox
- *     driving isochrone (badminton wider, pickleball narrower) — respects roads
- *     and water barriers.
- *   - Radius (fallback): a single 5-mile straight-line circle feeding both.
+ *   - Drive-time (preferred, when MAPBOX_TOKEN is set): a Mapbox driving
+ *     isochrone (DRIVE_MINUTES) — respects roads and water barriers.
+ *   - Radius (fallback): a single 5-mile straight-line circle.
  *
  * Flow for each catchment:
  *   1. TIGERweb (ArcGIS REST) — census tracts intersecting the area.
@@ -75,7 +74,7 @@ interface Accum {
 }
 
 /**
- * Public entry point. Prefers sport-specific drive-time catchments; falls back
+ * Public entry point. Prefers the drive-time catchment; falls back
  * to a 5-mile radius when Mapbox isn't configured or an isochrone fails, so the
  * app keeps working with no token. All callers use this one function.
  */
@@ -111,7 +110,7 @@ async function fetchRadiusDemographics(lat: number, lng: number): Promise<Demogr
   }
 }
 
-/** Sport-specific drive-time isochrones — the preferred mode. */
+/** Badminton drive-time isochrone — the preferred mode. */
 async function fetchDriveTimeDemographics(lat: number, lng: number): Promise<Demographics | null> {
   const key = process.env.CENSUS_API_KEY
   if (!key) {
@@ -119,21 +118,13 @@ async function fetchDriveTimeDemographics(lat: number, lng: number): Promise<Dem
     return null
   }
   try {
-    const [bRing, pRing] = await Promise.all([
-      fetchIsochrone(lat, lng, DRIVE_MINUTES.badminton),
-      fetchIsochrone(lat, lng, DRIVE_MINUTES.pickleball),
-    ])
-    if (!bRing || !pRing) return null
+    const ring = await fetchIsochrone(lat, lng, DRIVE_MINUTES)
+    if (!ring) return null
 
-    const [bAgg, pAgg] = await Promise.all([
-      tractsWithinPolygon(bRing).then((ids) => aggregateTracts(ids, key)),
-      tractsWithinPolygon(pRing).then((ids) => aggregateTracts(ids, key)),
-    ])
-    if (!bAgg || !pAgg) return null
+    const agg = await aggregateTracts(await tractsWithinPolygon(ring), key)
+    if (!agg) return null
 
-    const badminton = buildCatchment(bAgg.acc, bAgg.tractCount, 'badminton', bRing)
-    const pickleball = buildCatchment(pAgg.acc, pAgg.tractCount, 'pickleball', pRing)
-    return assembleDrive(badminton, pickleball)
+    return assembleDrive(buildCatchment(agg.acc, agg.tractCount, ring))
   } catch (err) {
     console.warn('[census] drive-time demographics fetch failed:', err)
     return null
@@ -342,7 +333,6 @@ function derive(acc: Accum) {
     targetShare: ethnicity.targetShare,
     meanHouseholdIncome,
     prime18to44Share: age.prime18to44Share,
-    adult18to64Share: age.adult18to64Share,
     totalPopulation: pop,
   }
   return { pop, meanHouseholdIncome, ethnicity, age, fitInputs }
@@ -361,35 +351,28 @@ function assembleRadius(acc: Accum, tractCount: number): Demographics {
     ethnicity,
     age,
     badmintonFit: badmintonFit(fitInputs),
-    pickleballFit: pickleballFit(fitInputs),
     fetchedAt: new Date().toISOString(),
   }
 }
 
-function buildCatchment(
-  acc: Accum,
-  tractCount: number,
-  sport: 'badminton' | 'pickleball',
-  ring: number[][],
-): Catchment {
+function buildCatchment(acc: Accum, tractCount: number, ring: number[][]): Catchment {
   const { pop, meanHouseholdIncome, ethnicity, age, fitInputs } = derive(acc)
-  const fit = sport === 'badminton' ? badmintonFit(fitInputs) : pickleballFit(fitInputs)
   return {
     kind: 'drive',
-    driveMinutes: DRIVE_MINUTES[sport],
+    driveMinutes: DRIVE_MINUTES,
     tractCount,
     totalPopulation: pop,
     households: acc.households,
     meanHouseholdIncome,
     ethnicity,
     age,
-    fit,
+    fit: badmintonFit(fitInputs),
     ring,
   }
 }
 
-/** Top-level flat fields mirror the (wider) badminton catchment for the panel. */
-function assembleDrive(badminton: Catchment, pickleball: Catchment): Demographics {
+/** Top-level flat fields mirror the badminton drive-time catchment for the panel. */
+function assembleDrive(badminton: Catchment): Demographics {
   const b = badminton
   return {
     vintage: ACS_VINTAGE,
@@ -402,8 +385,7 @@ function assembleDrive(badminton: Catchment, pickleball: Catchment): Demographic
     ethnicity: b.ethnicity,
     age: b.age,
     badmintonFit: badminton.fit,
-    pickleballFit: pickleball.fit,
-    catchments: { badminton, pickleball },
+    catchments: { badminton },
     fetchedAt: new Date().toISOString(),
   }
 }

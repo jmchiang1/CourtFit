@@ -57,7 +57,7 @@ export function PhotoStrip({
               type="button"
               onClick={() => setLightboxIndex(i)}
               title="View larger"
-              className="block shrink-0 h-32 w-44 rounded-lg overflow-hidden ring-1 ring-border bg-card hover:ring-foreground/30 transition focus:outline-none focus:ring-2 focus:ring-foreground/40"
+              className="block shrink-0 h-32 w-44 rounded-lg overflow-hidden ring-1 ring-border bg-muted hover:ring-foreground/25 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -79,7 +79,7 @@ export function PhotoStrip({
           <button
             type="button"
             onClick={() => scrollBy(-1)}
-            className="photo-strip-arrow absolute left-1 top-1/2 -translate-y-1/2 size-9 rounded-full bg-background/80 backdrop-blur ring-1 ring-border shadow flex items-center justify-center hover:bg-background transition"
+            className="photo-strip-arrow absolute left-1 top-1/2 -translate-y-1/2 size-9 rounded-full bg-panel text-foreground ring-1 ring-border shadow-lift flex items-center justify-center hover:bg-muted transition-colors"
             aria-label="Scroll photos left"
           >
             <ChevronLeft className="size-5" />
@@ -89,7 +89,7 @@ export function PhotoStrip({
           <button
             type="button"
             onClick={() => scrollBy(1)}
-            className="photo-strip-arrow absolute right-1 top-1/2 -translate-y-1/2 size-9 rounded-full bg-background/80 backdrop-blur ring-1 ring-border shadow flex items-center justify-center hover:bg-background transition"
+            className="photo-strip-arrow absolute right-1 top-1/2 -translate-y-1/2 size-9 rounded-full bg-panel text-foreground ring-1 ring-border shadow-lift flex items-center justify-center hover:bg-muted transition-colors"
             aria-label="Scroll photos right"
           >
             <ChevronRight className="size-5" />

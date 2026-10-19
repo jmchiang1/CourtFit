@@ -10,7 +10,7 @@ import { AssumptionsPanel } from '@/components/AssumptionsPanel'
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
 import { fmtMoney, fmtYears } from '@/lib/format'
 import { calculateAnalysis } from '@/lib/calculator'
-import { DEFAULT_ASSUMPTIONS, EMPTY_LISTING } from '@/lib/constants'
+import { DEFAULT_ASSUMPTIONS, resolveAssumptions, EMPTY_LISTING } from '@/lib/constants'
 import { saveProperty } from '@/app/actions/save-property'
 import type { Assumptions, ExtractedListing } from '@/types/analysis'
 import type { PropertyRow } from '@/lib/supabase/types'
@@ -41,7 +41,7 @@ export function EditorSheet({ initial, onClose, onSaved }: Props) {
         imageUrls: initial.row.listing_json.imageUrls ?? [],
       })
       // Merge with defaults to fill in any fields missing from older saves.
-      setAssumptions({ ...DEFAULT_ASSUMPTIONS, ...initial.row.assumptions_json })
+      setAssumptions(resolveAssumptions(initial.row.assumptions_json))
       setSavedId(initial.row.id)
     } else {
       setListing({ ...EMPTY_LISTING })
@@ -98,11 +98,13 @@ export function EditorSheet({ initial, onClose, onSaved }: Props) {
     >
       <SheetContent className="editor-sheet w-full overflow-y-auto p-0 data-[side=right]:sm:max-w-[90vw] data-[side=right]:lg:max-w-[80vw] data-[side=right]:xl:max-w-[70vw]">
         <div className="flex flex-col min-h-full">
-          <SheetHeader className="border-b border-border px-5 py-4 sticky top-0 bg-background/95 backdrop-blur z-10">
-            <SheetTitle>{savedId ? 'Edit property' : 'Add new property'}</SheetTitle>
+          <SheetHeader className="border-b border-border px-5 py-4 sticky top-0 bg-popover z-10">
+            <SheetTitle className="font-display text-lg font-semibold text-foreground">
+              {savedId ? 'Edit property' : 'Add new property'}
+            </SheetTitle>
           </SheetHeader>
 
-          <div className="flex-1 px-5 py-4 space-y-4">
+          <div className="flex-1 bg-background px-5 py-4 space-y-4">
             <ListingInput onExtracted={(l) => setListing(l)} />
             {listing.imageUrls?.length > 0 && (
               <PhotoStrip images={listing.imageUrls} sourceUrl={listing.sourceUrl ?? null} />
@@ -115,18 +117,31 @@ export function EditorSheet({ initial, onClose, onSaved }: Props) {
           </div>
 
           {/* Live verdict preview footer — sticks at the bottom of the sheet */}
-          <div className="border-t border-border bg-card/50 backdrop-blur px-5 py-3 sticky bottom-0 z-10">
+          <div className="border-t border-border bg-popover px-5 py-3 sticky bottom-0 z-10">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-wrap text-sm tabular-nums">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 tabular-nums">
                 <RatingBadge rating={result.rating} />
-                <span className="text-muted-foreground">
-                  NOI <span className="text-foreground font-medium">{fmtMoney(result.noi)}</span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="text-xs text-muted-foreground">NOI</span>
+                  <span
+                    className={`font-display text-sm font-semibold ${
+                      result.noi < 0 ? 'text-risk' : 'text-foreground'
+                    }`}
+                  >
+                    {fmtMoney(result.noi)}
+                  </span>
                 </span>
-                <span className="text-muted-foreground">
-                  Courts <span className="text-foreground font-medium">{result.courts.total}</span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="text-xs text-muted-foreground">Courts</span>
+                  <span className="font-display text-sm font-semibold text-foreground">
+                    {result.courts.total}
+                  </span>
                 </span>
-                <span className="text-muted-foreground">
-                  Payback <span className="text-foreground font-medium">{fmtYears(result.paybackYears)}</span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="text-xs text-muted-foreground">Payback</span>
+                  <span className="font-display text-sm font-semibold text-foreground">
+                    {fmtYears(result.paybackYears)}
+                  </span>
                 </span>
               </div>
               <div className="flex items-center gap-2">

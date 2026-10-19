@@ -1,12 +1,13 @@
 import { cn } from '@/lib/utils'
 
 /**
- * CourtFit brand mark — a top-down court tile (net + center line quartering the
- * court, with a service box and a focal "sweet-spot" dot at center). The dot is
- * the visual pun: the right property is the one that *fits* the court.
+ * CourtFit brand mark — a court dropped inside four survey corner marks. The
+ * corners are the building footprint being measured; the court is what has to
+ * fit inside it.
  *
- * Colors are pulled from the global brand CSS variables so the mark always
- * tracks the theme (cyan-teal → indigo gradient over the deep-ink background).
+ * Corners use `currentColor` (so they follow the text color in either theme);
+ * the court uses the brand `--court` token. On a green background, set
+ * `--logo-court` / `--logo-lines` to invert the court (see the home page).
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
@@ -17,41 +18,20 @@ export function LogoMark({ className }: { className?: string }) {
       role="img"
       aria-label="CourtFit"
     >
-      <defs>
-        <linearGradient
-          id="courtfit-mark"
-          x1="3"
-          y1="3"
-          x2="29"
-          y2="29"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop stopColor="var(--brand)" />
-          <stop offset="1" stopColor="var(--chart-3)" />
-        </linearGradient>
-      </defs>
-
-      {/* court tile */}
-      <rect x="2.5" y="2.5" width="27" height="27" rx="8.5" fill="url(#courtfit-mark)" />
-
-      {/* court lines drawn in the page ink so they read as cut-outs */}
-      <g stroke="var(--bg-base)" strokeLinecap="round">
-        <path d="M16 5.5 V26.5" strokeWidth="1.6" opacity="0.92" />
-        <path d="M5.5 16 H26.5" strokeWidth="1.6" opacity="0.5" />
-        <rect
-          x="9.5"
-          y="9.5"
-          width="13"
-          height="13"
-          rx="3.5"
-          fill="none"
-          strokeWidth="1.3"
-          opacity="0.45"
-        />
+      {/* footprint corner marks */}
+      <g stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9V3h6" />
+        <path d="M23 3h6v6" />
+        <path d="M29 23v6h-6" />
+        <path d="M9 29H3v-6" />
       </g>
 
-      {/* sweet-spot / "fit" dot */}
-      <circle cx="16" cy="16" r="2.6" fill="var(--bg-base)" />
+      {/* the court, seen from above: net down the middle, service lines either side */}
+      <rect x="6.5" y="10" width="19" height="12" rx="1.25" fill="var(--logo-court, var(--court))" />
+      <g stroke="var(--logo-lines, #fff)" strokeLinecap="butt">
+        <path d="M16 8.75v14.5" strokeWidth="1.6" />
+        <path d="M12 10v12M20 10v12M6.5 16H12M20 16h5.5" strokeWidth="0.9" opacity="0.75" />
+      </g>
     </svg>
   )
 }
@@ -67,12 +47,10 @@ export function Logo({
   showWordmark?: boolean
 }) {
   return (
-    <span className={cn('inline-flex items-center gap-2', className)}>
+    <span className={cn('inline-flex items-center gap-2 text-foreground', className)}>
       <LogoMark className={cn('size-7', markClassName)} />
       {showWordmark && (
-        <span className="text-[0.975rem] font-semibold tracking-tight text-foreground">
-          Court<span className="text-primary">Fit</span>
-        </span>
+        <span className="font-display text-[1.05rem] font-bold leading-none">CourtFit</span>
       )}
     </span>
   )

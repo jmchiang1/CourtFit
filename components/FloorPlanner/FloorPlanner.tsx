@@ -163,7 +163,7 @@ export default function FloorPlanner({ onClose, onSave, saving }: Props) {
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onKeyUp={onKeyUp}
-      className="flex h-full w-full overflow-hidden bg-[#0a0e14] text-neutral-200 outline-none"
+      className="flex h-full w-full overflow-hidden bg-background text-foreground outline-none"
     >
       <Palette />
 
@@ -185,7 +185,7 @@ export default function FloorPlanner({ onClose, onSave, saving }: Props) {
           className="relative min-h-0 flex-1 overflow-auto"
           style={{
             backgroundImage:
-              "radial-gradient(circle at 1px 1px, rgba(255,255,255,.04) 1px, transparent 0)",
+              "radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0)",
             backgroundSize: "22px 22px",
             cursor: spacePan ? (panning ? "grabbing" : "grab") : undefined,
           }}
@@ -200,20 +200,20 @@ export default function FloorPlanner({ onClose, onSave, saving }: Props) {
             zones={zones}
           />
 
-          <div className="pointer-events-none sticky bottom-3 left-3 z-10 ml-3 inline-flex flex-col gap-1 rounded-lg border border-[#232a34] bg-[#161b22]/90 px-3 py-2 text-[10px] text-neutral-400 backdrop-blur">
+          <div className="pointer-events-none sticky bottom-3 left-3 z-10 ml-3 inline-flex flex-col gap-1 rounded-lg border border-border bg-panel/90 px-3 py-2 text-[10px] text-muted-foreground shadow-lift backdrop-blur">
             <div className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-3.5 rounded-sm border border-dashed border-red-500 bg-red-500/20" />
+              <span className="inline-block h-2.5 w-3.5 rounded-sm border border-dashed border-risk bg-risk/20" />
               Warning — low ceiling / overlap / out of bounds
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-block h-2.5 w-3.5 rounded-sm border border-sky-400" />
-              Drag to move · <span className="text-neutral-500">R</span> rotate ·{" "}
-              <span className="text-neutral-500">Del</span> remove
+              <span className="inline-block h-2.5 w-3.5 rounded-sm border-2 border-primary" />
+              Drag to move · <span className="font-medium text-foreground">R</span> rotate ·{" "}
+              <span className="font-medium text-foreground">Del</span> remove
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-neutral-500">Space</span>-drag to pan ·{" "}
-              <span className="text-neutral-500">drag</span> empty area to select ·{" "}
-              <span className="text-neutral-500">Shift</span>-click multi
+              <span className="font-medium text-foreground">Space</span>-drag to pan ·{" "}
+              <span className="font-medium text-foreground">drag</span> empty area to select ·{" "}
+              <span className="font-medium text-foreground">Shift</span>-click multi
             </div>
           </div>
         </div>

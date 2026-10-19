@@ -31,10 +31,6 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
       "score": 78,
       "label": "Strong"
     },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
     "fetchedAt": "2026-05-30T21:08:56.352Z"
   },
   "Kotofit Jersey City (3rd St)": {
@@ -62,10 +58,6 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
     },
     "badmintonFit": {
       "score": 82,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
       "label": "Strong"
     },
     "fetchedAt": "2026-05-30T21:08:59.534Z"
@@ -97,10 +89,6 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
       "score": 84,
       "label": "Strong"
     },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
     "fetchedAt": "2026-05-30T21:09:02.147Z"
   },
   "Kotofit Jersey City (Summit Ave)": {
@@ -130,44 +118,7 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
       "score": 86,
       "label": "Strong"
     },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
     "fetchedAt": "2026-05-30T21:09:04.337Z"
-  },
-  "Gotham Pickleball": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 831,
-    "totalPopulation": 3359445,
-    "households": 1479326,
-    "meanHouseholdIncome": 167102,
-    "ethnicity": {
-      "eastAsian": 261868,
-      "southAsian": 145623,
-      "targetAsian": 407491,
-      "eastAsianShare": 0.07794978039527363,
-      "southAsianShare": 0.04334733862289753,
-      "targetShare": 0.12129711901817115
-    },
-    "age": {
-      "under18": 572078,
-      "prime18to44": 1527925,
-      "mature45to64": 767551,
-      "senior65plus": 491891,
-      "prime18to44Share": 0.45481470897722687,
-      "adult18to64Share": 0.6832902458590631
-    },
-    "badmintonFit": {
-      "score": 78,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:07.091Z"
   },
   "Brooklyn Badminton Center": {
     "vintage": "2023",
@@ -194,10 +145,6 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
     },
     "badmintonFit": {
       "score": 77,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
       "label": "Strong"
     },
     "fetchedAt": "2026-05-30T21:09:08.896Z"
@@ -229,110 +176,7 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
       "score": 71,
       "label": "Strong"
     },
-    "pickleballFit": {
-      "score": 97,
-      "label": "Strong"
-    },
     "fetchedAt": "2026-05-30T21:09:10.303Z"
-  },
-  "Velto Pickleball": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 742,
-    "totalPopulation": 2724644,
-    "households": 1135455,
-    "meanHouseholdIncome": 155014,
-    "ethnicity": {
-      "eastAsian": 243179,
-      "southAsian": 103004,
-      "targetAsian": 346183,
-      "eastAsianShare": 0.08925166003338418,
-      "southAsianShare": 0.03780457190003538,
-      "targetShare": 0.12705623193341956
-    },
-    "age": {
-      "under18": 537708,
-      "prime18to44": 1225111,
-      "mature45to64": 594173,
-      "senior65plus": 367652,
-      "prime18to44Share": 0.4496407604075982,
-      "adult18to64Share": 0.667714387641101
-    },
-    "badmintonFit": {
-      "score": 80,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:12.900Z"
-  },
-  "Red Hook Pickleball Club": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 726,
-    "totalPopulation": 2671441,
-    "households": 1109824,
-    "meanHouseholdIncome": 154909,
-    "ethnicity": {
-      "eastAsian": 243325,
-      "southAsian": 101061,
-      "targetAsian": 344386,
-      "eastAsianShare": 0.09108380084007096,
-      "southAsianShare": 0.03783014485440629,
-      "targetShare": 0.12891394569447726
-    },
-    "age": {
-      "under18": 530434,
-      "prime18to44": 1194971,
-      "mature45to64": 583274,
-      "senior65plus": 362762,
-      "prime18to44Share": 0.4473132665104713,
-      "adult18to64Share": 0.6656501116812986
-    },
-    "badmintonFit": {
-      "score": 80,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:15.713Z"
-  },
-  "PKLYN Pickleball Club": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 793,
-    "totalPopulation": 2824667,
-    "households": 1159924,
-    "meanHouseholdIncome": 150018,
-    "ethnicity": {
-      "eastAsian": 257109,
-      "southAsian": 89262,
-      "targetAsian": 346371,
-      "eastAsianShare": 0.09102276480732065,
-      "southAsianShare": 0.031600893131827575,
-      "targetShare": 0.12262365793914823
-    },
-    "age": {
-      "under18": 566577,
-      "prime18to44": 1243620,
-      "mature45to64": 622242,
-      "senior65plus": 392228,
-      "prime18to44Share": 0.4402713665009008,
-      "adult18to64Share": 0.6605599881331145
-    },
-    "badmintonFit": {
-      "score": 78,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:18.000Z"
   },
   "New York Badminton Center": {
     "vintage": "2023",
@@ -359,10 +203,6 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
     },
     "badmintonFit": {
       "score": 93,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 92,
       "label": "Strong"
     },
     "fetchedAt": "2026-05-30T21:09:20.558Z"
@@ -394,242 +234,7 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
       "score": 93,
       "label": "Strong"
     },
-    "pickleballFit": {
-      "score": 98,
-      "label": "Strong"
-    },
     "fetchedAt": "2026-05-30T21:09:21.502Z"
-  },
-  "Pickleball Prime": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 128,
-    "totalPopulation": 620950,
-    "households": 196619,
-    "meanHouseholdIncome": 188699,
-    "ethnicity": {
-      "eastAsian": 39590,
-      "southAsian": 53274,
-      "targetAsian": 92864,
-      "eastAsianShare": 0.06375714630807633,
-      "southAsianShare": 0.08579434737096385,
-      "targetShare": 0.1495514936790402
-    },
-    "age": {
-      "under18": 131572,
-      "prime18to44": 207419,
-      "mature45to64": 169811,
-      "senior65plus": 112148,
-      "prime18to44Share": 0.3340349464530155,
-      "adult18to64Share": 0.6075046300024156
-    },
-    "badmintonFit": {
-      "score": 82,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 99,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:22.509Z"
-  },
-  "Pickleball Plus": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 180,
-    "totalPopulation": 813134,
-    "households": 257843,
-    "meanHouseholdIncome": 164337,
-    "ethnicity": {
-      "eastAsian": 23967,
-      "southAsian": 55025,
-      "targetAsian": 78992,
-      "eastAsianShare": 0.02947484670423325,
-      "southAsianShare": 0.0676702732882895,
-      "targetShare": 0.09714511999252276
-    },
-    "age": {
-      "under18": 172207,
-      "prime18to44": 276058,
-      "mature45to64": 219962,
-      "senior65plus": 144907,
-      "prime18to44Share": 0.3394987787990663,
-      "adult18to64Share": 0.6100101582273032
-    },
-    "badmintonFit": {
-      "score": 68,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:23.528Z"
-  },
-  "Pickleball Smash IT": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 117,
-    "totalPopulation": 591918,
-    "households": 185301,
-    "meanHouseholdIncome": 189431,
-    "ethnicity": {
-      "eastAsian": 35044,
-      "southAsian": 43225,
-      "targetAsian": 78269,
-      "eastAsianShare": 0.05920414652029504,
-      "southAsianShare": 0.07302531769603222,
-      "targetShare": 0.13222946421632725
-    },
-    "age": {
-      "under18": 127281,
-      "prime18to44": 199563,
-      "mature45to64": 162936,
-      "senior65plus": 102138,
-      "prime18to44Share": 0.33714636148926036,
-      "adult18to64Share": 0.6124142195371656
-    },
-    "badmintonFit": {
-      "score": 78,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:24.047Z"
-  },
-  "SportTime Pickleball Westbury": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 122,
-    "totalPopulation": 612471,
-    "households": 191911,
-    "meanHouseholdIncome": 187671,
-    "ethnicity": {
-      "eastAsian": 32122,
-      "southAsian": 39821,
-      "targetAsian": 71943,
-      "eastAsianShare": 0.052446564816946435,
-      "southAsianShare": 0.065016955904851,
-      "targetShare": 0.11746352072179744
-    },
-    "age": {
-      "under18": 132617,
-      "prime18to44": 207460,
-      "mature45to64": 167530,
-      "senior65plus": 104864,
-      "prime18to44Share": 0.3387262417322616,
-      "adult18to64Share": 0.6122575599497773
-    },
-    "badmintonFit": {
-      "score": 74,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:24.573Z"
-  },
-  "Gold Coast Pickleball Club": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 47,
-    "totalPopulation": 186076,
-    "households": 63936,
-    "meanHouseholdIncome": 248305,
-    "ethnicity": {
-      "eastAsian": 16550,
-      "southAsian": 7308,
-      "targetAsian": 23858,
-      "eastAsianShare": 0.088942152668802,
-      "southAsianShare": 0.039274275027408156,
-      "targetShare": 0.12821642769621014
-    },
-    "age": {
-      "under18": 41436,
-      "prime18to44": 53363,
-      "mature45to64": 53179,
-      "senior65plus": 38098,
-      "prime18to44Share": 0.2867806702637632,
-      "adult18to64Share": 0.5725724972591845
-    },
-    "badmintonFit": {
-      "score": 75,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 98,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:25.095Z"
-  },
-  "The Pickle Complex": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 56,
-    "totalPopulation": 262487,
-    "households": 84991,
-    "meanHouseholdIncome": 216365,
-    "ethnicity": {
-      "eastAsian": 21510,
-      "southAsian": 24645,
-      "targetAsian": 46155,
-      "eastAsianShare": 0.08194691546628977,
-      "southAsianShare": 0.09389036409422181,
-      "targetShare": 0.17583727956051157
-    },
-    "age": {
-      "under18": 55409,
-      "prime18to44": 80031,
-      "mature45to64": 76555,
-      "senior65plus": 50492,
-      "prime18to44Share": 0.3048950995668357,
-      "adult18to64Share": 0.5965476385497187
-    },
-    "badmintonFit": {
-      "score": 89,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 99,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:26.146Z"
-  },
-  "The Pickle Club": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 62,
-    "totalPopulation": 294927,
-    "households": 95543,
-    "meanHouseholdIncome": 209783,
-    "ethnicity": {
-      "eastAsian": 22655,
-      "southAsian": 27019,
-      "targetAsian": 49674,
-      "eastAsianShare": 0.07681561878024054,
-      "southAsianShare": 0.09161250072051728,
-      "targetShare": 0.1684281195007578
-    },
-    "age": {
-      "under18": 61481,
-      "prime18to44": 92016,
-      "mature45to64": 84979,
-      "senior65plus": 56451,
-      "prime18to44Share": 0.311995849820464,
-      "adult18to64Share": 0.6001315579787541
-    },
-    "badmintonFit": {
-      "score": 87,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 99,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:27.215Z"
   },
   "Long Island Badminton Center": {
     "vintage": "2023",
@@ -658,44 +263,7 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
       "score": 72,
       "label": "Strong"
     },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
     "fetchedAt": "2026-05-30T21:09:28.103Z"
-  },
-  "Long Island Pickleball Center": {
-    "vintage": "2023",
-    "radiusMiles": 5,
-    "tractCount": 90,
-    "totalPopulation": 401924,
-    "households": 131738,
-    "meanHouseholdIncome": 182608,
-    "ethnicity": {
-      "eastAsian": 19023,
-      "southAsian": 26111,
-      "targetAsian": 45134,
-      "eastAsianShare": 0.04732984345299111,
-      "southAsianShare": 0.06496501826215902,
-      "targetShare": 0.11229486171515013
-    },
-    "age": {
-      "under18": 81458,
-      "prime18to44": 128480,
-      "mature45to64": 116798,
-      "senior65plus": 75188,
-      "prime18to44Share": 0.3196624237418019,
-      "adult18to64Share": 0.6102596510783133
-    },
-    "badmintonFit": {
-      "score": 72,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
-    "fetchedAt": "2026-05-30T21:09:29.040Z"
   },
   "New Jersey Badminton Club": {
     "vintage": "2023",
@@ -722,10 +290,6 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
     },
     "badmintonFit": {
       "score": 84,
-      "label": "Strong"
-    },
-    "pickleballFit": {
-      "score": 100,
       "label": "Strong"
     },
     "fetchedAt": "2026-05-30T21:09:31.079Z"
@@ -757,10 +321,6 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
       "score": 77,
       "label": "Strong"
     },
-    "pickleballFit": {
-      "score": 100,
-      "label": "Strong"
-    },
     "fetchedAt": "2026-05-30T21:09:33.039Z"
   },
   "Cardinal Badminton": {
@@ -789,10 +349,6 @@ export const FACILITY_DEMOGRAPHICS: Record<string, Demographics> = {
     "badmintonFit": {
       "score": 61,
       "label": "Moderate"
-    },
-    "pickleballFit": {
-      "score": 93,
-      "label": "Strong"
     },
     "fetchedAt": "2026-05-30T21:09:35.054Z"
   }

@@ -31,12 +31,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
 import { StatusBadge } from '@/components/Dashboard/StatusBadge'
+import { RATING_STYLE } from '@/lib/rating-style'
 import { RangeFilterMenu } from '@/components/RangeFilterMenu'
 import { ColumnPickerMenu } from '@/components/ColumnPickerMenu'
 import { fmtMoney } from '@/lib/format'
 import { ArrowUp, ArrowDown, ArrowUpDown, GripVertical, MoreVertical, Pencil, Trash2, Eye, MapPin, ChevronLeft, ChevronRight, X, Tag, Star } from 'lucide-react'
 import { calculateAnalysis } from '@/lib/calculator'
-import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
+import { resolveAssumptions } from '@/lib/constants'
 import { REGIONS, detectRegion, type Region } from '@/lib/region'
 import {
   PROPERTY_STATUSES,
@@ -149,7 +150,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
         listing: r.listing_json,
         // Merge with defaults so older saved properties (missing new fields)
         // compute correctly.
-        assumptions: { ...DEFAULT_ASSUMPTIONS, ...r.assumptions_json },
+        assumptions: resolveAssumptions(r.assumptions_json),
         condition: r.condition_json,
       })
       return {
@@ -312,14 +313,16 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
         >
           <SelectTrigger className="w-52">
             <span className="text-muted-foreground">Rating:</span>
-            <SelectValue>{(v: string) => (v === 'All' ? 'All' : v)}</SelectValue>
+            <SelectValue>
+              {(v: string) => (v === 'All' ? 'All' : RATING_STYLE[v as Rating].label)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="All">All</SelectItem>
-            <SelectItem value="Strong Candidate">Strong Candidate</SelectItem>
-            <SelectItem value="Worth Investigating">Worth Investigating</SelectItem>
+            <SelectItem value="Strong Candidate">Strong candidate</SelectItem>
+            <SelectItem value="Worth Investigating">Worth investigating</SelectItem>
             <SelectItem value="Risky">Risky</SelectItem>
-            <SelectItem value="Do Not Pursue">Do Not Pursue</SelectItem>
+            <SelectItem value="Do Not Pursue">Do not pursue</SelectItem>
             <SelectItem value="Incomplete">Incomplete</SelectItem>
           </SelectContent>
         </Select>
@@ -382,8 +385,8 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
 
       <div className="surface overflow-hidden">
         <Table>
-          <TableHeader>
-            <TableRow>
+          <TableHeader className="bg-muted/40">
+            <TableRow className="hover:bg-transparent">
               {shownColumns.map((c) => (
                 <SortHeader
                   key={c.key}
@@ -427,7 +430,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
               return (
               <TableRow
                 key={row.id}
-                className={`cursor-pointer hover:bg-white/[0.03] ${
+                className={`cursor-pointer hover:bg-muted/50 ${
                   STATUS_META[status].inactive ? 'opacity-55' : ''
                 }`}
                 onClick={() => onView(row)}
@@ -460,7 +463,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
                         <Pencil className="size-4" /> Edit
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onInterestedChange(row.id, !row.interested)}>
-                        <Star className={`size-4 ${row.interested ? 'fill-current text-amber-300' : ''}`} />
+                        <Star className={`size-4 ${row.interested ? 'fill-current text-caution' : ''}`} />
                         {row.interested ? 'Remove interest' : 'Mark interested'}
                       </DropdownMenuItem>
                       <DropdownMenuSub>
@@ -486,7 +489,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
                             onDelete(row.id)
                           }
                         }}
-                        className="text-rose-300"
+                        variant="destructive"
                       >
                         <Trash2 className="size-4" /> Delete
                       </DropdownMenuItem>
@@ -593,7 +596,7 @@ function Cell({
               title={row.interested ? 'Remove from interested' : 'Mark as interested'}
               className={`shrink-0 inline-flex items-center rounded-md p-0.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
                 row.interested
-                  ? 'text-amber-300 hover:text-amber-200'
+                  ? 'text-caution hover:text-caution/80'
                   : 'text-muted-foreground/40 hover:text-foreground'
               }`}
             >
@@ -732,7 +735,7 @@ function SortHeader({
       }}
       onDragEnd={onDragEnd}
       className={[
-        'group relative cursor-grab select-none active:cursor-grabbing',
+        'group relative cursor-grab select-none text-xs font-medium text-muted-foreground active:cursor-grabbing',
         alignRight ? 'text-right' : '',
         dragging ? 'opacity-40' : '',
         // Drop indicator: a rule on the edge the column would land against.

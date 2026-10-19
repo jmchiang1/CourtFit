@@ -3,7 +3,7 @@ import type { Rating, RiskFlag } from '@/types/analysis'
 export interface FallbackInput {
   address: string | null
   rating: Rating
-  courts: { badminton: number; pickleball: number; total: number }
+  courts: { badminton: number; total: number }
   grossRevenue: number
   noi: number
   paybackYears: number | null
@@ -14,13 +14,11 @@ const fmtMoney = (n: number) =>
   n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}M` : `$${Math.round(n / 1000)}K`
 
 export function generateFallbackSummary(i: FallbackInput): string {
-  const where = i.address ? `at ${i.address}` : 'this property'
-  const article = i.rating.startsWith('S') || i.rating.startsWith('R') ? 'a' : 'a'
-  const ratingLine = `This ${where ? 'property' : 'listing'} is ${article} ${i.rating} candidate for a Kotofit-style badminton/pickleball facility.`
+  const ratingLine = `This property is rated ${i.rating} for a badminton facility.`
 
   const courtLine =
     i.courts.total > 0
-      ? `It supports an estimated ${i.courts.badminton} badminton and ${i.courts.pickleball} pickleball court(s) (${i.courts.total} total).`
+      ? `It supports an estimated ${i.courts.badminton} badminton court${i.courts.badminton === 1 ? '' : 's'}.`
       : 'Court count could not be determined from the inputs provided.'
 
   const noiLine =

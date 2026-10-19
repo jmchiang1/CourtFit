@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useTheme } from 'next-themes'
 import {
   APIProvider,
   Map,
@@ -9,15 +10,17 @@ import {
   InfoWindow,
   Pin,
   useMap,
+  ColorScheme,
 } from '@vis.gl/react-google-maps'
 import type { PropertyRow } from '@/lib/supabase/types'
 import { calculateAnalysis } from '@/lib/calculator'
-import { DEFAULT_ASSUMPTIONS } from '@/lib/constants'
+import { resolveAssumptions } from '@/lib/constants'
 import { fmtMoney, fmtPct } from '@/lib/format'
 import { FACILITY_DEMOGRAPHICS } from '@/lib/facility-demographics'
 import { DRIVE_MINUTES } from '@/lib/catchment'
 import type { Demographics, FitScore, FitLabel } from '@/types/demographics'
 import { RatingBadge } from '@/components/Dashboard/RatingBadge'
+import { RATING_STYLE } from '@/lib/rating-style'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -47,7 +50,7 @@ import { REGIONS, detectRegion, type Region } from '@/lib/region'
 import {
   REFERENCE_FACILITIES,
   facilityRegion,
-  type Sport,
+  facilityUrl,
   type ReferenceFacility,
 } from '@/lib/reference-facilities'
 import {
@@ -65,14 +68,30 @@ import {
   type PropertyStatus,
 } from '@/lib/property-status'
 
-// Pin colors mirror the rating semantics used elsewhere in the app.
-const RATING_COLOR: Record<Rating, { bg: string; border: string; glyph: string }> = {
-  'Strong Candidate': { bg: '#10b981', border: '#059669', glyph: '#ffffff' },
-  'Worth Investigating': { bg: '#38bdf8', border: '#0ea5e9', glyph: '#ffffff' },
-  'Risky': { bg: '#f59e0b', border: '#d97706', glyph: '#ffffff' },
-  'Do Not Pursue': { bg: '#f43f5e', border: '#e11d48', glyph: '#ffffff' },
-  'Incomplete': { bg: '#94a3b8', border: '#64748b', glyph: '#ffffff' },
+// Pin colors mirror the rating semantics used elsewhere in the app. Google's
+// markers need literal colors (no CSS vars), so these are the hex values of the
+// good / info / caution / risk tokens in app/globals.css, one set per theme.
+type PinColor = { bg: string; border: string; glyph: string }
+const RATING_COLOR: Record<'light' | 'dark', Record<Rating, PinColor>> = {
+  light: {
+    'Strong Candidate': { bg: '#1f7a4b', border: '#155a37', glyph: '#ffffff' },
+    'Worth Investigating': { bg: '#2a5fb0', border: '#1f4785', glyph: '#ffffff' },
+    'Risky': { bg: '#9a6100', border: '#704600', glyph: '#ffffff' },
+    'Do Not Pursue': { bg: '#bb3a2c', border: '#8f2b20', glyph: '#ffffff' },
+    'Incomplete': { bg: '#8a958f', border: '#5b6861', glyph: '#ffffff' },
+  },
+  dark: {
+    'Strong Candidate': { bg: '#52c48c', border: '#1f7a4b', glyph: '#0d1411' },
+    'Worth Investigating': { bg: '#79a6f2', border: '#2a5fb0', glyph: '#0d1411' },
+    'Risky': { bg: '#e3b04b', border: '#9a6100', glyph: '#0d1411' },
+    'Do Not Pursue': { bg: '#f07c6c', border: '#bb3a2c', glyph: '#0d1411' },
+    'Incomplete': { bg: '#92a199', border: '#5b6861', glyph: '#0d1411' },
+  },
 }
+
+// Selected-marker trade-area overlay (radius ring / drive-time polygon) uses the
+// brand court green — the hex of `--court` per theme.
+const OVERLAY_COLOR = { light: '#1c5a44', dark: '#4fb985' } as const
 
 const NYC_CENTER = { lat: 40.73, lng: -73.85 }
 
@@ -87,30 +106,36 @@ const clampMinutes = (n: number) => Math.max(1, Math.min(60, Math.round(Number.i
 
 // Shared classes for the segmented catchment-mode buttons.
 const segBtn = (active: boolean) =>
-  `flex h-full items-center gap-1.5 px-2.5 text-sm transition ${
-    active ? 'bg-foreground/10 text-foreground' : 'text-muted-foreground hover:text-foreground'
+  `flex h-full items-center gap-1.5 px-2.5 text-sm transition-colors ${
+    active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
   }`
+
+// Layer toggles (My sites / Competitors / Demand): an outline control that
+// picks up a soft brand tint while the layer is on.
+const layerToggle = (on: boolean) =>
+  on
+    ? 'border-primary/40 bg-primary/10 text-foreground hover:bg-primary/15 dark:border-primary/40 dark:bg-primary/15 dark:hover:bg-primary/20'
+    : 'text-muted-foreground'
 
 // Competitor facilities share one high-contrast marker so they read as a single
 // "reference" layer, clearly distinct from the rating-colored candidate-site
-// pins. White-on-dark is the most legible against the dark basemap; the sport
-// is conveyed by the chips in the popup / list, not the marker color.
+// pins. A white dot with an ink ring stays legible on both basemaps.
 const COMPETITOR_COLOR = '#ffffff'
-const COMPETITOR_RING = '#0f172a'
+const COMPETITOR_RING = '#15201b'
 
 // Teardrop pin (candidate sites) — used for the legacy-marker fallback when no
 // cloud Map ID is configured (Advanced Markers require a Map ID).
-function pinIcon(bg: string, border: string): string {
+function pinIcon(bg: string, border: string, glyph: string = '#ffffff'): string {
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">` +
     `<path d="M14 0C6.27 0 0 6.27 0 14c0 9.45 14 26 14 26s14-16.55 14-26C28 6.27 21.73 0 14 0z" ` +
     `fill="${bg}" stroke="${border}" stroke-width="1.5"/>` +
-    `<circle cx="14" cy="14" r="5" fill="#ffffff"/></svg>`
+    `<circle cx="14" cy="14" r="5" fill="${glyph}"/></svg>`
   return `data:image/svg+xml,${encodeURIComponent(svg)}`
 }
 
 // Circle marker (competitor facilities). The fill color is user-configurable
-// (defaults to white); the dark ring keeps it legible on the dark basemap.
+// (defaults to white); the ink ring keeps it legible on either basemap.
 function competitorIcon(color: string = COMPETITOR_COLOR): string {
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">` +
@@ -196,9 +221,11 @@ function PanTo({ target }: { target: { lat: number; lng: number } | null }) {
 function RadiusRing({
   center,
   radiusMiles,
+  color,
 }: {
   center: { lat: number; lng: number } | null
   radiusMiles: number
+  color: string
 }) {
   const map = useMap()
   const circleRef = useRef<google.maps.Circle | null>(null)
@@ -211,19 +238,20 @@ function RadiusRing({
     if (!circleRef.current) {
       circleRef.current = new google.maps.Circle({
         map,
-        strokeColor: '#f43f5e',
         strokeOpacity: 0.9,
         strokeWeight: 2,
-        fillColor: '#f43f5e',
-        fillOpacity: 0.07,
+        fillOpacity: 0.08,
         clickable: false,
       })
     }
+    // Re-applied every run so a theme switch (which swaps the map instance and
+    // the overlay color) carries the existing circle over.
+    circleRef.current.setOptions({ map, strokeColor: color, fillColor: color })
     // Mutating the existing circle (vs. recreating) keeps the ring from
     // flickering while the user drags the radius slider.
     circleRef.current.setCenter(center)
     circleRef.current.setRadius(radiusMiles * MILE_IN_METERS)
-  }, [map, center?.lat, center?.lng, radiusMiles])
+  }, [map, center?.lat, center?.lng, radiusMiles, color])
   // Tear the circle down when the map unmounts.
   useEffect(() => () => circleRef.current?.setMap(null), [])
   return null
@@ -233,7 +261,7 @@ function RadiusRing({
  * Draws a single drive-time isochrone polygon (the live overlay the user tunes
  * via the Drive-time menu). Ring is [lng,lat] pairs; we convert to {lat,lng}.
  */
-function PolygonRing({ ring }: { ring: number[][] | null }) {
+function PolygonRing({ ring, color }: { ring: number[][] | null; color: string }) {
   const map = useMap()
   const polyRef = useRef<google.maps.Polygon | null>(null)
   useEffect(() => {
@@ -243,18 +271,18 @@ function PolygonRing({ ring }: { ring: number[][] | null }) {
     polyRef.current = new google.maps.Polygon({
       map,
       paths: ring.map(([lng, lat]) => ({ lat, lng })),
-      strokeColor: '#f43f5e',
+      strokeColor: color,
       strokeOpacity: 0.9,
       strokeWeight: 2,
-      fillColor: '#f43f5e',
-      fillOpacity: 0.07,
+      fillColor: color,
+      fillOpacity: 0.08,
       clickable: false,
     })
     return () => {
       polyRef.current?.setMap(null)
       polyRef.current = null
     }
-  }, [map, ring])
+  }, [map, ring, color])
   return null
 }
 
@@ -293,7 +321,7 @@ function buildHeatSprites(size = 128): HTMLCanvasElement[] {
  * at most once per animation frame on pan/zoom.
  *
  * Replaces the previous approach of attaching ~900 google.maps.Circle overlays,
- * which blocked the main thread on every toggle/sport-change and repainted all
+ * which blocked the main thread on every toggle/filter change and repainted all
  * 900 vector shapes on each pan. (We avoid the deprecated visualization
  * HeatmapLayer, which newer Maps keys no longer provision.)
  */
@@ -406,7 +434,7 @@ function DemandHeatmap({ points }: { points: HeatPoint[] | null }) {
     }
   }, [map])
 
-  // Push new data (initial load / sport toggle / off) and request a redraw —
+  // Push new data (initial load / filter change / off) and request a redraw —
   // no overlay teardown, just a restamp on the next frame.
   useEffect(() => {
     let max = 0
@@ -418,46 +446,68 @@ function DemandHeatmap({ points }: { points: HeatPoint[] | null }) {
   return null
 }
 
-// Fit-label colors tuned for the white InfoWindow (dark text on light chips).
+// Google's InfoWindow is always white, even on the dark basemap, so its
+// contents are pinned to the light-theme tokens (hex values from globals.css).
+// Token classes inside (text-good, text-muted-foreground, bg-primary …) then
+// resolve against these instead of the page's dark values.
+const INFOWINDOW_VARS = {
+  '--foreground': '#15201b',
+  '--muted': '#eceee9',
+  '--muted-foreground': '#5b6861',
+  '--border': '#dde1db',
+  '--input': '#d3d8d1',
+  '--panel': '#ffffff',
+  '--primary': '#1c5a44',
+  '--primary-foreground': '#ffffff',
+  '--ring': '#1c5a44',
+  '--good': '#1f7a4b',
+  '--info': '#2a5fb0',
+  '--caution': '#9a6100',
+  '--risk': '#bb3a2c',
+} as React.CSSProperties
+
+// Fit-label colors for the demand pills (semantic tones).
 const FIT_PILL: Record<FitLabel, string> = {
-  Strong: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  Moderate: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  Weak: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+  Strong: 'bg-good/10 text-good ring-good/25',
+  Moderate: 'bg-caution/10 text-caution ring-caution/25',
+  Weak: 'bg-risk/10 text-risk ring-risk/25',
 }
 
-function FitPill({ sport, fit }: { sport: string; fit: FitScore }) {
+function FitPill({ fit }: { fit: FitScore }) {
   return (
     <span
-      className={`fit-pill inline-flex flex-1 items-center justify-between gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ${FIT_PILL[fit.label]}`}
+      className={`fit-pill inline-flex flex-1 items-center justify-between gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset ${FIT_PILL[fit.label]}`}
       title={`${fit.label} demand`}
     >
-      <span>{sport}</span>
+      <span>Badminton demand</span>
       <span className="tabular-nums">{fit.score}</span>
     </span>
   )
 }
 
-/** Compact 5-mile trade-area summary shown inside a map InfoWindow. */
+/** "20-min drive" / "5-mi radius" — the catchment a demographics record covers. */
+function catchmentLabel(d: Demographics): string {
+  return d.mode === 'drive'
+    ? `${d.catchments?.badminton.driveMinutes ?? DRIVE_MINUTES}-min drive`
+    : `${d.radiusMiles}-mi radius`
+}
+
+/** Compact trade-area summary shown inside a map InfoWindow. */
 function DemandMini({ d }: { d: Demographics }) {
   return (
-    <div className="demand-mini mt-1 space-y-1 border-t border-black/10 pt-1.5">
-      <div className="flex items-center justify-between text-[11px] text-neutral-500">
-        <span>
-          {d.mode === 'drive'
-            ? `Demand · ${DRIVE_MINUTES.badminton}/${DRIVE_MINUTES.pickleball}-min drive`
-            : `Demand · ${d.radiusMiles}-mi radius`}
-        </span>
+    <div className="demand-mini mt-1 space-y-1 border-t border-border pt-1.5">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>Demand · {catchmentLabel(d)}</span>
         <span className="tabular-nums">{d.totalPopulation.toLocaleString()} people</span>
       </div>
       <div className="flex gap-1.5">
-        <FitPill sport="Badminton" fit={d.badmintonFit} />
-        <FitPill sport="Pickleball" fit={d.pickleballFit} />
+        <FitPill fit={d.badmintonFit} />
       </div>
-      <div className="flex items-center justify-between text-[11px] text-neutral-600">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>East + South Asian</span>
         <span className="tabular-nums">{fmtPct(d.ethnicity.targetShare)}</span>
       </div>
-      <div className="flex items-center justify-between text-[11px] text-neutral-600">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>Mean income</span>
         <span className="tabular-nums">
           {d.meanHouseholdIncome != null ? fmtMoney(d.meanHouseholdIncome) : '—'}
@@ -467,25 +517,7 @@ function DemandMini({ d }: { d: Demographics }) {
   )
 }
 
-function SportChips({ sports }: { sports: Sport[] }) {
-  return (
-    <div className="sport-chips flex flex-wrap gap-1">
-      {sports.map((s) => (
-        <span
-          key={s}
-          className="sport-chip inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ring-1"
-          style={{
-            color: s === 'Badminton' ? '#a5b4fc' : '#5eead4',
-            borderColor: s === 'Badminton' ? '#6366f155' : '#14b8a655',
-            backgroundColor: s === 'Badminton' ? '#6366f118' : '#14b8a618',
-          }}
-        >
-          {s}
-        </span>
-      ))}
-    </div>
-  )
-}
+const noopSubscribe = () => () => {}
 
 export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }: Props) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
@@ -500,10 +532,26 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
   const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID?.trim() || undefined
   const useAdvanced = !!mapId
 
+  // Basemap + pin palette follow the app theme. `resolvedTheme` is unknown
+  // during SSR/hydration, so hold the <Map> back until mounted — otherwise it
+  // would be created LIGHT and immediately re-created DARK (colorScheme is an
+  // init-only option, so each change is a fresh, billable map instance).
+  const { resolvedTheme } = useTheme()
+  const mounted = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  )
+  const theme: 'light' | 'dark' = mounted && resolvedTheme === 'dark' ? 'dark' : 'light'
+  const colorScheme = theme === 'dark' ? ColorScheme.DARK : ColorScheme.LIGHT
+  const pinColors = RATING_COLOR[theme]
+  const overlayColor = OVERLAY_COLOR[theme]
+
   const [selected, setSelected] = useState<Selected>(null)
   const [focus, setFocus] = useState<{ lat: number; lng: number } | null>(null)
   const [radiusMiles, setRadiusMiles] = useState(DEFAULT_RADIUS_MILES)
-  const [driveMinutes, setDriveMinutes] = useState(15)
+  // Default the exploratory overlay to the badminton catchment the scores use.
+  const [driveMinutes, setDriveMinutes] = useState<number>(DRIVE_MINUTES)
   const [mapMode, setMapMode] = useState<'radius' | 'drive'>('drive')
   // Demand heatmap (greenfield finder) — baked tract data loaded on first enable.
   const [heatmapOn, setHeatmapOn] = useState(false)
@@ -539,7 +587,6 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
       /* ignore */
     }
   }
-  const [sport, setSport] = useState<'all' | Sport | 'both'>('all')
   const [region, setRegion] = useState<'all' | Region>('all')
   const [minCourts, setMinCourts] = useState(0)
   const [search, setSearch] = useState('')
@@ -595,7 +642,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
       .map((r) => {
         const result = calculateAnalysis({
           listing: r.listing_json,
-          assumptions: { ...DEFAULT_ASSUMPTIONS, ...r.assumptions_json },
+          assumptions: resolveAssumptions(r.assumptions_json),
           condition: r.condition_json,
         })
         const title = r.label || r.address || 'Property'
@@ -624,8 +671,9 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
       facility: f,
       demographics: FACILITY_DEMOGRAPHICS[f.name] ?? null,
     }))
+    // Badminton-only: older user-added rows may be pickleball-only — skip them.
     const added: CompetitorPoint[] = custom
-      .filter((r) => r.latitude != null && r.longitude != null)
+      .filter((r) => r.latitude != null && r.longitude != null && r.sports?.includes('Badminton'))
       .map((r) => ({
         kind: 'competitor',
         id: `custom-${r.id}`,
@@ -634,7 +682,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
         facility: {
           name: r.name,
           address: r.address,
-          sports: r.sports as Sport[],
+          sports: r.sports as ReferenceFacility['sports'],
           lat: r.latitude as number,
           lng: r.longitude as number,
         },
@@ -700,17 +748,11 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
   const competitors = useMemo(() => {
     if (!showCompetitors) return []
     return allCompetitors.filter((c) => {
-      if (sport === 'both') {
-        if (!(c.facility.sports.includes('Badminton') && c.facility.sports.includes('Pickleball')))
-          return false
-      } else if (sport !== 'all' && !c.facility.sports.includes(sport)) {
-        return false
-      }
       if (region !== 'all' && c.region !== region) return false
       if (q && !(`${c.facility.name} ${c.facility.address}`.toLowerCase().includes(q))) return false
       return true
     })
-  }, [allCompetitors, showCompetitors, sport, region, q])
+  }, [allCompetitors, showCompetitors, region, q])
 
   const positions = useMemo(
     () => [...properties.map((p) => p.position), ...competitors.map((c) => c.position)],
@@ -771,9 +813,9 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
 
   if (!apiKey) {
     return (
-      <div className="map-unavailable rounded-xl ring-1 ring-border bg-card p-8 text-center">
+      <div className="map-unavailable surface rounded-xl p-8 text-center">
         <MapPin className="size-6 mx-auto text-muted-foreground" />
-        <p className="mt-3 text-sm font-medium">Map unavailable</p>
+        <p className="mt-3 text-sm font-medium text-foreground">Map unavailable</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Set <code className="text-foreground">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> to enable the
           map view.
@@ -798,36 +840,40 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
             <Button
               type="button"
               size="sm"
-              variant={showProperties ? 'default' : 'outline'}
+              variant="outline"
+              aria-pressed={showProperties}
               onClick={() => setShowProperties((v) => !v)}
-              className="map-layer-toggle gap-1.5"
+              className={`map-layer-toggle gap-1.5 ${layerToggle(showProperties)}`}
             >
-              <span className="size-2 rounded-full bg-emerald-400" />
-              My sites ({allProperties.length})
+              <span className={`size-2 rounded-full bg-good ${showProperties ? '' : 'opacity-50'}`} />
+              My sites <span className="tabular-nums text-muted-foreground">{allProperties.length}</span>
             </Button>
             <Button
               type="button"
               size="sm"
-              variant={showCompetitors ? 'default' : 'outline'}
+              variant="outline"
+              aria-pressed={showCompetitors}
               onClick={() => setShowCompetitors((v) => !v)}
-              className="map-layer-toggle gap-1.5"
+              className={`map-layer-toggle gap-1.5 ${layerToggle(showCompetitors)}`}
             >
               <span
-                className="size-2 rounded-full ring-1 ring-black/30"
+                className={`size-2 rounded-full ring-1 ring-foreground/30 ${showCompetitors ? '' : 'opacity-50'}`}
                 style={{ background: referenceColor }}
               />
-              Competitors ({allCompetitors.length})
+              Competitors{' '}
+              <span className="tabular-nums text-muted-foreground">{allCompetitors.length}</span>
             </Button>
 
             <Button
               type="button"
               size="sm"
-              variant={heatmapOn ? 'default' : 'outline'}
+              variant="outline"
+              aria-pressed={heatmapOn}
               onClick={() => setHeatmapOn((v) => !v)}
-              className="map-heatmap-toggle gap-1.5"
+              className={`map-heatmap-toggle gap-1.5 ${layerToggle(heatmapOn)}`}
               title="Demand heatmap — population by race/ethnicity & income across the NYC metro"
             >
-              <Flame className="size-3.5" />
+              <Flame className={`size-3.5 ${heatmapOn ? 'text-caution' : ''}`} />
               Demand
             </Button>
             {heatmapOn && (
@@ -848,9 +894,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                   className="flex items-center gap-1.5"
                   title="Filter tracts by median household income"
                 >
-                  <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                    Income
-                  </span>
+                  <span className="text-xs text-muted-foreground">Income</span>
                   <input
                     type="range"
                     min={0}
@@ -861,7 +905,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                       const v = Number(e.target.value)
                       setIncomeRange(([, hi]) => [Math.min(v, hi), hi])
                     }}
-                    className="map-income-range h-1 w-16 cursor-pointer"
+                    className="map-income-range h-1 w-16 cursor-pointer accent-primary"
                     aria-label="Minimum median household income"
                   />
                   <input
@@ -874,7 +918,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                       const v = Number(e.target.value)
                       setIncomeRange(([lo]) => [lo, Math.max(v, lo)])
                     }}
-                    className="map-income-range h-1 w-16 cursor-pointer"
+                    className="map-income-range h-1 w-16 cursor-pointer accent-primary"
                     aria-label="Maximum median household income"
                   />
                   <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
@@ -900,24 +944,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
         {/* Row 2 — filters (left) · catchment overlay (right) */}
         <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <div className="map-filters flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Filter
-            </span>
-            <Select value={sport} onValueChange={(v) => setSport(v as 'all' | Sport | 'both')}>
-            <SelectTrigger size="sm" className="map-filter-sport w-[170px]">
-              <span className="text-muted-foreground">Sport:</span>
-              <SelectValue>
-                {(v: string) => (v === 'all' ? 'All' : v === 'both' ? 'Badminton + Pickleball' : v)}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="Badminton">Badminton</SelectItem>
-              <SelectItem value="Pickleball">Pickleball</SelectItem>
-              <SelectItem value="both">Badminton + Pickleball</SelectItem>
-            </SelectContent>
-          </Select>
-
+            <span className="text-xs text-muted-foreground">Filter</span>
           <Select value={region} onValueChange={(v) => setRegion(v as 'all' | Region)}>
             <SelectTrigger size="sm" className="map-filter-location w-[180px]">
               <span className="text-muted-foreground">Location:</span>
@@ -950,14 +977,16 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
           <Select value={ratingFilter} onValueChange={(v) => setRatingFilter(v as 'all' | Rating)}>
             <SelectTrigger size="sm" className="map-filter-rating w-[165px]">
               <span className="text-muted-foreground">Rating:</span>
-              <SelectValue>{(v: string) => (v === 'all' ? 'All' : v)}</SelectValue>
+              <SelectValue>
+                {(v: string) => (v === 'all' ? 'All' : RATING_STYLE[v as Rating].label)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All</SelectItem>
-              <SelectItem value="Strong Candidate">Strong Candidate</SelectItem>
-              <SelectItem value="Worth Investigating">Worth Investigating</SelectItem>
+              <SelectItem value="Strong Candidate">Strong candidate</SelectItem>
+              <SelectItem value="Worth Investigating">Worth investigating</SelectItem>
               <SelectItem value="Risky">Risky</SelectItem>
-              <SelectItem value="Do Not Pursue">Do Not Pursue</SelectItem>
+              <SelectItem value="Do Not Pursue">Do not pursue</SelectItem>
               <SelectItem value="Incomplete">Incomplete</SelectItem>
             </SelectContent>
           </Select>
@@ -987,9 +1016,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
           </div>
 
           <div className="map-catchment flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Catchment
-            </span>
+            <span className="text-xs text-muted-foreground">Catchment</span>
             <div className="map-catchment-mode flex items-center rounded-md border border-input h-8 overflow-hidden">
             {/* Drive time → minutes menu */}
             <DropdownMenu>
@@ -1026,10 +1053,10 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                       key={m}
                       type="button"
                       onClick={() => setDriveMinutes(m)}
-                      className={`flex-1 rounded border px-1.5 py-1 text-xs transition ${
+                      className={`flex-1 rounded-md border px-1.5 py-1 text-xs tabular-nums transition-colors ${
                         driveMinutes === m
-                          ? 'border-rose-500/60 bg-rose-500/10 text-foreground'
-                          : 'border-input text-muted-foreground hover:text-foreground'
+                          ? 'border-primary/50 bg-primary/10 text-foreground'
+                          : 'border-input text-muted-foreground hover:bg-muted hover:text-foreground'
                       }`}
                     >
                       {m}m
@@ -1038,7 +1065,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                 </div>
                 <p className="text-[11px] leading-snug text-muted-foreground">
                   Driving distance reachable around the selected marker. Demand scores still use the
-                  fixed per-sport catchments.
+                  fixed {DRIVE_MINUTES}-min badminton catchment.
                 </p>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1070,7 +1097,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                   value={radiusMiles}
                   onChange={(e) => setRadiusMiles(Number(e.target.value))}
                   aria-label="Trade-area ring radius in miles"
-                  className="map-radius-slider w-full accent-rose-500 cursor-pointer"
+                  className="map-radius-slider w-full accent-primary cursor-pointer"
                 />
                 <p className="text-[11px] leading-snug text-muted-foreground">
                   Straight-line distance around the selected marker.
@@ -1101,171 +1128,187 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
       )}
 
       <div className="map-layout flex gap-3">
-        <div className="map-canvas relative h-[72vh] flex-1 overflow-hidden rounded-xl ring-1 ring-border">
+        <div className="map-canvas relative h-[72vh] flex-1 overflow-hidden rounded-xl border bg-muted">
           <APIProvider apiKey={apiKey}>
-            <Map
-              mapId={mapId}
-              // AppHome unmounts this whole component when you leave the Map
-              // tab, and every `new google.maps.Map()` is a billable Dynamic
-              // Maps load. `reuseMaps` parks the instance in the library's
-              // module-level cache on unmount and re-attaches it on return, so
-              // a session costs one map load however often you switch tabs.
-              reuseMaps
-              defaultCenter={positions[0] ?? NYC_CENTER}
-              defaultZoom={10}
-              gestureHandling="greedy"
-              disableDefaultUI={false}
-              clickableIcons={false}
-              colorScheme="DARK"
-              onClick={() => setSelected(null)}
-            >
-              <FitBounds positions={positions} />
-              <DemandHeatmap points={heatmapPoints} />
-              <PanTo target={focus} />
-              {mapMode === 'drive' ? (
-                <PolygonRing ring={liveRing} />
-              ) : (
-                <RadiusRing center={selectedCenter} radiusMiles={radiusMiles} />
-              )}
-
-              {properties.map((p) => {
-                const c = RATING_COLOR[p.rating] ?? RATING_COLOR.Incomplete
-                return useAdvanced ? (
-                  <AdvancedMarker
-                    key={p.id}
-                    position={p.position}
-                    title={p.title}
-                    onClick={() => setSelected({ kind: 'property', id: p.id })}
-                  >
-                    <Pin background={c.bg} borderColor={c.border} glyphColor={c.glyph} />
-                  </AdvancedMarker>
+            {mounted && (
+              <Map
+                mapId={mapId}
+                // AppHome unmounts this whole component when you leave the Map
+                // tab, and every `new google.maps.Map()` is a billable Dynamic
+                // Maps load. `reuseMaps` parks the instance in the library's
+                // module-level cache on unmount and re-attaches it on return, so
+                // a session costs one map load however often you switch tabs.
+                reuseMaps
+                defaultCenter={positions[0] ?? NYC_CENTER}
+                defaultZoom={10}
+                gestureHandling="greedy"
+                disableDefaultUI={false}
+                clickableIcons={false}
+                colorScheme={colorScheme}
+                onClick={() => setSelected(null)}
+              >
+                <FitBounds positions={positions} />
+                <DemandHeatmap points={heatmapPoints} />
+                <PanTo target={focus} />
+                {mapMode === 'drive' ? (
+                  <PolygonRing ring={liveRing} color={overlayColor} />
                 ) : (
-                  <Marker
-                    key={p.id}
-                    position={p.position}
-                    title={p.title}
-                    icon={pinIcon(c.bg, c.border)}
-                    onClick={() => setSelected({ kind: 'property', id: p.id })}
-                  />
-                )
-              })}
+                  <RadiusRing center={selectedCenter} radiusMiles={radiusMiles} color={overlayColor} />
+                )}
 
-              {competitors.map((c) => (
-                <Marker
-                  key={c.id}
-                  position={c.position}
-                  title={c.facility.name}
-                  icon={competitorIcon(referenceColor)}
-                  onClick={() => setSelected({ kind: 'competitor', id: c.id })}
-                />
-              ))}
-
-              {selectedProperty && (
-                <InfoWindow
-                  position={selectedProperty.position}
-                  onCloseClick={() => setSelected(null)}
-                  pixelOffset={[0, -36]}
-                >
-                  <div className="site-infowindow min-w-44 max-w-64 space-y-1.5 p-0.5 text-neutral-900">
-                    <p className="font-medium leading-snug text-black">{selectedProperty.title}</p>
-                    {selectedProperty.subtitle && (
-                      <p className="text-xs text-neutral-600 leading-snug">
-                        {selectedProperty.subtitle}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <RatingBadge rating={selectedProperty.rating} />
-                      <span className="text-xs text-neutral-600">
-                        NOI {fmtMoney(selectedProperty.noi)}
-                      </span>
-                    </div>
-                    {selectedProperty.row.demographics_json && (
-                      <DemandMini d={selectedProperty.row.demographics_json} />
-                    )}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-1 w-full gap-1.5 text-white hover:text-white"
-                      onClick={() => onView(selectedProperty.row)}
+                {properties.map((p) => {
+                  const c = pinColors[p.rating] ?? pinColors.Incomplete
+                  return useAdvanced ? (
+                    <AdvancedMarker
+                      key={p.id}
+                      position={p.position}
+                      title={p.title}
+                      onClick={() => setSelected({ kind: 'property', id: p.id })}
                     >
-                      <Eye className="size-3.5" />
-                      View analysis
-                    </Button>
-                  </div>
-                </InfoWindow>
-              )}
+                      <Pin background={c.bg} borderColor={c.border} glyphColor={c.glyph} />
+                    </AdvancedMarker>
+                  ) : (
+                    <Marker
+                      key={p.id}
+                      position={p.position}
+                      title={p.title}
+                      icon={pinIcon(c.bg, c.border, c.glyph)}
+                      onClick={() => setSelected({ kind: 'property', id: p.id })}
+                    />
+                  )
+                })}
 
-              {selectedCompetitor && (
-                <InfoWindow
-                  position={selectedCompetitor.position}
-                  onCloseClick={() => setSelected(null)}
-                  pixelOffset={[0, -28]}
-                >
-                  <div className="facility-infowindow min-w-44 max-w-64 space-y-1.5 p-0.5 text-neutral-900">
-                    <p className="font-medium leading-snug text-black">
-                      {selectedCompetitor.facility.name}
-                    </p>
-                    <p className="text-xs text-neutral-600 leading-snug">
-                      {selectedCompetitor.facility.address}
-                    </p>
-                    <SportChips sports={selectedCompetitor.facility.sports} />
-                    {selectedCompetitor.demographics && (
-                      <DemandMini d={selectedCompetitor.demographics} />
-                    )}
-                    <div className="flex items-center justify-between gap-2 pt-0.5">
+                {competitors.map((c) => (
+                  <Marker
+                    key={c.id}
+                    position={c.position}
+                    title={c.facility.name}
+                    icon={competitorIcon(referenceColor)}
+                    onClick={() => setSelected({ kind: 'competitor', id: c.id })}
+                  />
+                ))}
+
+                {selectedProperty && (
+                  <InfoWindow
+                    position={selectedProperty.position}
+                    onCloseClick={() => setSelected(null)}
+                    pixelOffset={[0, -36]}
+                  >
+                    <div
+                      className="site-infowindow min-w-44 max-w-64 space-y-1.5 p-0.5 text-foreground"
+                      style={INFOWINDOW_VARS}
+                    >
+                      <p className="font-medium leading-snug">{selectedProperty.title}</p>
+                      {selectedProperty.subtitle && (
+                        <p className="text-xs text-muted-foreground leading-snug">
+                          {selectedProperty.subtitle}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <RatingBadge rating={selectedProperty.rating} />
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          NOI {fmtMoney(selectedProperty.noi)}
+                        </span>
+                      </div>
+                      {selectedProperty.row.demographics_json && (
+                        <DemandMini d={selectedProperty.row.demographics_json} />
+                      )}
+                      <Button
+                        size="sm"
+                        className="mt-1 w-full gap-1.5"
+                        onClick={() => onView(selectedProperty.row)}
+                      >
+                        <Eye className="size-3.5" />
+                        View analysis
+                      </Button>
+                    </div>
+                  </InfoWindow>
+                )}
+
+                {selectedCompetitor && (
+                  <InfoWindow
+                    position={selectedCompetitor.position}
+                    onCloseClick={() => setSelected(null)}
+                    pixelOffset={[0, -28]}
+                  >
+                    <div
+                      className="facility-infowindow min-w-44 max-w-64 space-y-1.5 p-0.5 text-foreground"
+                      style={INFOWINDOW_VARS}
+                    >
                       <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                          selectedCompetitor.facility.address,
-                        )}`}
+                        href={facilityUrl(selectedCompetitor.facility)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-neutral-600 hover:text-black"
+                        className="block font-medium leading-snug underline-offset-2 hover:underline"
                       >
-                        <ExternalLink className="size-3.5" />
-                        Open in Google Maps
+                        {selectedCompetitor.facility.name}
                       </a>
-                      {selectedCompetitor.custom && (
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => openEditFacility(selectedCompetitor.custom!.id)}
-                            className="inline-flex items-center gap-1 text-xs text-neutral-600 hover:text-black"
-                          >
-                            <Pencil className="size-3.5" />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteFacility(selectedCompetitor.custom!.id)}
-                            className="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700"
-                          >
-                            <Trash2 className="size-3.5" />
-                            Remove
-                          </button>
-                        </div>
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        {selectedCompetitor.facility.address}
+                      </p>
+                      {selectedCompetitor.demographics && (
+                        <DemandMini d={selectedCompetitor.demographics} />
                       )}
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            selectedCompetitor.facility.address,
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <ExternalLink className="size-3.5" />
+                          Open in Google Maps
+                        </a>
+                        {selectedCompetitor.custom && (
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => openEditFacility(selectedCompetitor.custom!.id)}
+                              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              <Pencil className="size-3.5" />
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteFacility(selectedCompetitor.custom!.id)}
+                              className="inline-flex items-center gap-1 text-xs text-risk hover:text-risk/80"
+                            >
+                              <Trash2 className="size-3.5" />
+                              Remove
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </InfoWindow>
-              )}
-            </Map>
+                  </InfoWindow>
+                )}
+              </Map>
+            )}
           </APIProvider>
 
           {/* Legend */}
-          <div className="map-legend absolute bottom-2 left-2 rounded-lg bg-background/80 backdrop-blur ring-1 ring-border px-2.5 py-2 text-[11px] space-y-1">
+          <div className="map-legend surface shadow-lift absolute bottom-2 left-2 space-y-1 px-2.5 py-2 text-[11px]">
             <div className="flex items-center gap-1.5">
-              <span className="inline-block size-2.5 rounded-full bg-emerald-400" />
+              <span className="inline-flex items-center gap-0.5" aria-hidden>
+                <span className="inline-block size-2 rounded-full bg-good" />
+                <span className="inline-block size-2 rounded-full bg-info" />
+                <span className="inline-block size-2 rounded-full bg-caution" />
+                <span className="inline-block size-2 rounded-full bg-risk" />
+              </span>
               <span className="text-muted-foreground">Your candidate sites (by rating)</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span
-                className="inline-block size-2.5 rounded-full ring-1 ring-black/40"
+                className="inline-block size-2.5 rounded-full ring-1 ring-foreground/40"
                 style={{ background: referenceColor }}
               />
-              <span className="text-muted-foreground">Reference Facilities</span>
+              <span className="text-muted-foreground">Badminton facilities</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="inline-block size-2.5 rounded-full border border-rose-500 bg-rose-500/10" />
+              <span className="inline-block size-2.5 rounded-full border border-primary bg-primary/10" />
               <span className="text-muted-foreground">
                 {mapMode === 'drive'
                   ? `${driveMinutes}-min drive area (selected)`
@@ -1276,11 +1319,11 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
         </div>
 
         {/* Reference list */}
-        <aside className="reference-list hidden lg:flex w-72 shrink-0 flex-col h-[72vh] rounded-xl ring-1 ring-border bg-card">
-          <div className="reference-list-header flex items-center justify-between gap-2 px-3 py-2 border-b border-border">
+        <aside className="reference-list surface hidden lg:flex w-72 shrink-0 flex-col h-[72vh] overflow-hidden rounded-xl">
+          <div className="reference-list-header flex items-center justify-between gap-2 px-3 py-2.5 border-b border-border">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Reference Facilities</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="font-display text-sm font-semibold text-foreground">Reference facilities</p>
+              <p className="text-xs text-muted-foreground tabular-nums">
                 {competitors.length} of {allCompetitors.length} shown
               </p>
             </div>
@@ -1296,7 +1339,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                       aria-label="Reference facility dot color"
                     >
                       <span
-                        className="size-3 rounded-full ring-1 ring-black/40"
+                        className="size-3 rounded-full ring-1 ring-foreground/40"
                         style={{ background: referenceColor }}
                       />
                     </Button>
@@ -1313,7 +1356,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                         className={`size-6 rounded-full ring-1 transition ${
                           referenceColor.toLowerCase() === c.toLowerCase()
                             ? 'ring-2 ring-primary'
-                            : 'ring-black/30 hover:ring-foreground/50'
+                            : 'ring-foreground/20 hover:ring-foreground/50'
                         }`}
                         style={{ background: c }}
                       />
@@ -1360,44 +1403,59 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
             ) : (
               competitors.map((c) => (
                 <div key={c.id} className="reference-item group relative">
-                  <button
-                    type="button"
+                  {/* div rather than <button> so the name can be a real link inside it. */}
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => focusFacility(c)}
-                    className={`block w-full text-left px-3 py-2 hover:bg-foreground/5 transition ${
-                      selected?.kind === 'competitor' && selected.id === c.id ? 'bg-foreground/5' : ''
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        focusFacility(c)
+                      }
+                    }}
+                    className={`block w-full cursor-pointer text-left px-3 py-2.5 hover:bg-muted/50 transition-colors ${
+                      selected?.kind === 'competitor' && selected.id === c.id ? 'bg-muted' : ''
                     }`}
                   >
                     <div className="flex items-start gap-2">
                       <span
-                        className="mt-1 inline-block size-2.5 shrink-0 rounded-full ring-1 ring-black/30"
+                        className="mt-1 inline-block size-2.5 shrink-0 rounded-full ring-1 ring-foreground/30"
                         style={{ background: referenceColor }}
                       />
                       <div className="min-w-0">
-                        <p className="text-sm font-medium leading-snug truncate pr-5">
-                          {c.facility.name}
+                        <p className="text-sm font-medium leading-snug text-foreground truncate pr-5">
+                          <a
+                            href={facilityUrl(c.facility)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="underline-offset-2 hover:underline"
+                          >
+                            {c.facility.name}
+                          </a>
                         </p>
                         <p className="text-xs text-muted-foreground leading-snug truncate">
                           {c.facility.address}
                         </p>
-                        <div className="mt-1">
-                          <SportChips sports={c.facility.sports} />
-                        </div>
                         {c.demographics && (
                           <p className="mt-1 text-[10px] tabular-nums text-muted-foreground">
-                            5-mi demand · Badminton {c.demographics.badmintonFit.score}
-                            {' · '}Pickleball {c.demographics.pickleballFit.score}
+                            Badminton demand {c.demographics.badmintonFit.score}
+                            {' · '}
+                            {catchmentLabel(c.demographics)}
                           </p>
                         )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                   {c.custom && !demo && (
                     <div className="absolute right-2 top-2 hidden items-center gap-0.5 group-hover:flex">
                       <button
                         type="button"
                         onClick={() => openEditFacility(c.custom!.id)}
                         aria-label={`Edit ${c.facility.name}`}
-                        className="rounded p-1 text-muted-foreground hover:text-foreground"
+                        className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                       >
                         <Pencil className="size-3.5" />
                       </button>
@@ -1405,7 +1463,7 @@ export function PropertiesMap({ rows, onView, unmappedCount = 0, demo = false }:
                         type="button"
                         onClick={() => handleDeleteFacility(c.custom!.id)}
                         aria-label={`Remove ${c.facility.name}`}
-                        className="rounded p-1 text-muted-foreground hover:text-rose-400"
+                        className="rounded-md p-1 text-muted-foreground hover:bg-risk/10 hover:text-risk"
                       >
                         <Trash2 className="size-3.5" />
                       </button>

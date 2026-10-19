@@ -28,11 +28,11 @@ const COMPLIANCE_CHECKLIST: { key: string; label: string }[] = [
   { key: 'code-consultant', label: 'Architect / code-consultant sign-off to open as designed' },
 ]
 
-const SYSTEM_PROMPT = `You assess commercial / industrial spaces being converted into INDOOR RACKET-SPORTS facilities (badminton & pickleball) in New York City or Nassau County, NY. You estimate renovation scope from the listing text and photos, and flag code/permitting due-diligence items.
+const SYSTEM_PROMPT = `You assess commercial / industrial spaces being converted into INDOOR BADMINTON facilities in New York City or Nassau County, NY. You estimate renovation scope from the listing text and photos, and flag code/permitting due-diligence items.
 
 CONTEXT YOU MUST APPLY:
 - The end use is an ASSEMBLY occupancy (NYC Building Code Group A-3). That typically forces: automatic sprinklers + fire alarm, rated egress, accessible (ADA) restrooms, and adequate ventilation — often beyond what a warehouse/retail shell has.
-- Badminton needs ~20 ft+ unobstructed clear height; pickleball ~18 ft+. Obstructions (ducts, beams, lights, low sprinklers) reduce usable height.
+- Badminton needs ~20 ft+ unobstructed clear height over the courts. Obstructions (ducts, beams, lights, low sprinklers) reduce usable height.
 - A barebones warehouse shell (bare slab, no HVAC, exposed deck, no finishes) implies a near full gut. A space already fitted out (climate-controlled, finished floors/walls, existing restrooms) implies far less work.
 
 For EACH building system, return:
@@ -169,7 +169,7 @@ export async function assessCondition(listing: ExtractedListing): Promise<Condit
     const content: Anthropic.ContentBlockParam[] = [
       {
         type: 'text',
-        text: `Assess this prospective indoor racket-sports facility.\n\nLISTING DETAILS:\n${listingText(listing)}\n\n${images.length} photo(s) follow.`,
+        text: `Assess this prospective indoor badminton facility.\n\nLISTING DETAILS:\n${listingText(listing)}\n\n${images.length} photo(s) follow.`,
       },
       ...images.map(
         (url): Anthropic.ContentBlockParam => ({

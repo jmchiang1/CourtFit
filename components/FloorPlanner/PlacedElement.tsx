@@ -37,6 +37,18 @@ const HANDLES: Dir[] = [
   { dx: -1, dy: 0, cursor: "ew-resize" },
 ];
 
+/** `pct`% of `color` over transparent — works for hex and `var(--…)` colors alike. */
+const tint = (color: string, pct: number) => `color-mix(in oklab, ${color} ${pct}%, transparent)`;
+
+/**
+ * Pull a mid-tone toward the theme's ink so text drawn in an element's color
+ * stays legible on both the light and the dark floor.
+ */
+const inked = (color: string) => `color-mix(in oklab, ${color} 72%, var(--foreground))`;
+
+/** Painted court lines sit on the colored mat, so they're white in both themes. */
+const COURT_LINE = "rgb(255 255 255 / 0.6)";
+
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
@@ -242,7 +254,7 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
   const w = rect.wFt * ppf;
   const h = rect.hFt * ppf;
 
-  const selRing = selected ? "0 0 0 2px #0a0e14, 0 0 0 4px #38bdf8" : "none";
+  const selRing = selected ? "0 0 0 2px var(--panel), 0 0 0 4px var(--primary)" : "none";
 
   let body: React.ReactNode = null;
 
@@ -256,11 +268,16 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
     const netHorizontal = play.wFt >= play.hFt;
     body = (
       <>
+        {/* Court surface: a solid mat in the court's color; run-off reads as a
+            slightly lighter band around the painted lines. */}
         <div
           className="absolute inset-0 rounded-[2px]"
           style={{
-            background: hasWarning ? "#ef444422" : `${c.color}1f`,
-            border: hasWarning ? "1.5px dashed #ef4444" : `1px solid ${c.color}aa`,
+            // A warned court keeps its color but fades and picks up a red hatch.
+            background: hasWarning
+              ? `repeating-linear-gradient(45deg, ${tint("var(--risk)", 30)} 0 3px, transparent 3px 9px), ${tint(c.color, 45)}`
+              : tint(c.color, showPlayLines || mode === "play" ? 72 : 88),
+            border: hasWarning ? "1.5px dashed var(--risk)" : `1px solid ${c.color}`,
           }}
         />
         {(showPlayLines || mode === "play") && (
@@ -271,14 +288,14 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
               top: playTop,
               width: playW,
               height: playH,
-              border: `1.5px solid ${c.color}`,
-              background: `${c.color}12`,
+              border: `1.5px solid ${COURT_LINE}`,
+              background: hasWarning ? "transparent" : c.color,
             }}
           >
             <div
-              className="absolute bg-current"
+              className="absolute"
               style={{
-                color: c.color,
+                background: COURT_LINE,
                 ...(netHorizontal
                   ? { left: "50%", top: 0, bottom: 0, width: 1.5 }
                   : { top: "50%", left: 0, right: 0, height: 1.5 }),
@@ -286,10 +303,7 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
             />
           </div>
         )}
-        <div
-          className="pointer-events-none absolute left-1 top-0.5 max-w-[calc(100%-8px)] truncate select-none font-mono text-[9px] font-semibold leading-tight"
-          style={{ color: c.color, textShadow: "0 1px 2px rgba(244,241,234,.7)" }}
-        >
+        <div className="pointer-events-none absolute left-1 top-0.5 max-w-[calc(100%-8px)] truncate select-none text-[9px] font-semibold leading-tight text-white/90">
           {item.label ?? c.short}
         </div>
       </>
@@ -302,7 +316,7 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
       <div
         className="absolute inset-0 flex items-center justify-center overflow-hidden"
         style={{
-          background: linear ? it.color : `${it.color}dd`,
+          background: linear ? it.color : tint(it.color, 88),
           border: `1px solid ${it.color}`,
           borderRadius: round ? "50%" : 3,
         }}
@@ -321,9 +335,9 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
       <div
         className="absolute inset-0 overflow-hidden rounded-[2px]"
         style={{
-          background: `${r.fill}26`,
+          background: tint(r.fill, 15),
           border: `2px solid ${r.fill}`,
-          boxShadow: "inset 0 0 0 1px rgba(255,255,255,.35)",
+          boxShadow: `inset 0 0 0 1px ${tint("var(--panel)", 40)}`,
         }}
       >
         <div className="flex h-full w-full flex-col items-center justify-center gap-0.5 px-1 text-center">
@@ -331,7 +345,7 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
           {h > 26 && (
             <span
               className="pointer-events-none select-none text-[9px] font-semibold leading-tight"
-              style={{ color: r.fill }}
+              style={{ color: inked(r.fill) }}
             >
               {label}
             </span>
@@ -362,7 +376,7 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
       {body}
 
       {sole && (
-        <div className="pointer-events-none absolute -top-5 left-0 whitespace-nowrap rounded bg-[#0d1117] px-1.5 py-0.5 font-mono text-[10px] text-sky-300 shadow">
+        <div className="pointer-events-none absolute -top-5 left-0 whitespace-nowrap rounded bg-foreground px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-background shadow-xs">
           {Math.round(rect.wFt)}′ × {Math.round(rect.hFt)}′
         </div>
       )}
@@ -377,7 +391,7 @@ export default function PlacedElement({ item, ppf, mode, selected, sole, warning
               onPointerDown={(e) => onHandleDown(e, dir)}
               onPointerMove={onHandleMove}
               onPointerUp={onHandleUp}
-              className="absolute z-50 h-2.5 w-2.5 rounded-full border border-sky-400 bg-white touch-none"
+              className="absolute z-50 h-2.5 w-2.5 rounded-full border-[1.5px] border-primary bg-panel touch-none"
               style={{ left: hx - 5, top: hy - 5, cursor: dir.cursor }}
             />
           );

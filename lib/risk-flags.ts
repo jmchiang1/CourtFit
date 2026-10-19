@@ -26,16 +26,16 @@ export function generateRiskFlags(i: RiskFlagInput): RiskFlag[] {
       severity: 'high',
       title: 'Rent estimated',
       detail:
-        'No rental rate stated — using $24/sf/yr as an estimate. Contact broker for the actual rate before relying on the financial model.',
+        'No rental rate stated — using $25/sf/yr base rent (plus NNN) as an estimate. Contact broker for the actual rate before relying on the financial model.',
     })
   }
 
-  if (i.totalCourts > 0 && i.totalCourts < 6) {
+  if (i.totalCourts > 0 && i.totalCourts < 5) {
     flags.push({
       id: 'too-few-courts',
       severity: 'medium',
-      title: 'Below 6-court target',
-      detail: 'This property may be too small for the preferred Kotofit 6-court model.',
+      title: 'Below 5-court target',
+      detail: 'This property may be too small for the 5-court model the financials are based on.',
     })
   }
 

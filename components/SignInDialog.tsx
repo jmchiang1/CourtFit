@@ -1,43 +1,130 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Check } from 'lucide-react'
+import { Logo } from '@/components/Logo'
 import { signInWithGoogle } from '@/app/actions/auth'
 
+const PERKS = [
+  'Save every building you analyze, with its verdict',
+  'Lay out courts on floor plans and keep them',
+  'Track outreach status across your whole pipeline',
+]
+
 export function SignInDialog({ children }: { children: React.ReactNode }) {
-  const [pending, start] = useTransition()
+  const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   return (
-    <Dialog>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o)
+        if (o) setError(null)
+      }}
+    >
       <DialogTrigger render={children as React.ReactElement}></DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Sign in</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={pending}
-            className="w-full gap-2"
-            onClick={() => {
-              setError(null)
-              start(async () => {
-                // On success the action redirects to Google and never returns.
-                const r = await signInWithGoogle()
-                if (r?.error) setError(r.error)
-              })
-            }}
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[760px]">
+        <div className="grid sm:grid-cols-[1fr_1.1fr]">
+          {/* court-green side: what an account gets you */}
+          <aside
+            className="relative hidden flex-col justify-between overflow-hidden p-8 text-white sm:flex"
+            style={{ background: '#1f6a4e', '--logo-court': '#fff', '--logo-lines': '#1f6a4e' } as React.CSSProperties}
           >
-            <GoogleIcon />
-            {pending ? 'Redirecting…' : 'Continue with Google'}
-          </Button>
-          {error && <p className="text-sm text-rose-300">{error}</p>}
+            <svg
+              aria-hidden
+              viewBox="0 0 20 44"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-3 h-[calc(100%-1.5rem)] w-[calc(100%-1.5rem)] text-white opacity-[0.11]"
+              fill="none"
+              stroke="currentColor"
+            >
+              {[
+                'M0 0H20V44H0Z',
+                'M1.5 0V44M18.5 0V44',
+                'M0 2.5H20M0 41.5H20M0 15.5H20M0 28.5H20',
+                'M10 0V15.5M10 28.5V44',
+              ].map((d) => (
+                <path key={d} d={d} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+              ))}
+              <path d="M0 22H20" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+            </svg>
+
+            <Logo className="relative text-white" />
+            <div className="relative mt-24">
+              <p className="font-display text-2xl leading-tight font-bold">
+                Keep your pipeline in one place.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-sm text-white/85">
+                {PERKS.map((p) => (
+                  <li key={p} className="flex gap-2.5">
+                    <Check className="mt-0.5 size-4 shrink-0 text-line" strokeWidth={2.5} />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </aside>
+
+          {/* sign-in side */}
+          <div className="flex flex-col justify-center p-8 sm:px-10 sm:py-14">
+            <DialogHeader className="gap-2">
+              <DialogTitle className="text-2xl">Sign in to CourtFit</DialogTitle>
+              <DialogDescription className="text-base">
+                Use your Google account. New here? Signing in creates your account.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-8 space-y-3">
+              <GoogleButton onError={setError} />
+              {error && (
+                <p role="alert" className="text-sm text-risk">
+                  {error}
+                </p>
+              )}
+            </div>
+
+            <p className="mt-8 text-xs leading-relaxed text-muted-foreground">
+              Just looking? The demo works without an account. Nothing you change there is saved.
+            </p>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Sends the browser to Google's sign-in page; Google returns to /api/auth/callback. */
+function GoogleButton({ onError }: { onError: (m: string | null) => void }) {
+  const [pending, start] = useTransition()
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="lg"
+      disabled={pending}
+      className="w-full gap-2"
+      onClick={() => {
+        onError(null)
+        start(async () => {
+          // On success the action redirects to Google and never returns.
+          const r = await signInWithGoogle()
+          if (r?.error) onError(r.error)
+        })
+      }}
+    >
+      <GoogleIcon />
+      {pending ? 'Redirecting…' : 'Continue with Google'}
+    </Button>
   )
 }
 

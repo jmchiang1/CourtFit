@@ -29,7 +29,9 @@ function Seg({
       title={title}
       onClick={onClick}
       className={`h-7 rounded-md px-2.5 text-[12px] font-medium transition ${
-        active ? "bg-sky-500 text-white shadow" : "text-neutral-300 hover:bg-white/10"
+        active
+          ? "bg-primary text-primary-foreground shadow-xs"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground"
       }`}
     >
       {children}
@@ -87,7 +89,7 @@ function DimensionInput({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      className="h-7 w-16 rounded-md border border-[#232a34] bg-[#0d1117] px-1.5 text-center font-mono text-[12px] text-neutral-100 outline-none focus:border-sky-500"
+      className="h-7 w-16 rounded-md border border-input bg-background px-1.5 text-center text-[12px] tabular-nums text-foreground outline-none focus:border-ring"
       title={title}
     />
   );
@@ -109,7 +111,7 @@ function Btn({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className="h-7 rounded-md border border-[#232a34] px-2.5 text-[12px] font-medium text-neutral-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
+      className="h-7 rounded-md border border-border px-2.5 text-[12px] font-medium text-foreground shadow-xs transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
     >
       {children}
     </button>
@@ -136,36 +138,36 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
   } = usePlanner();
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[#232a34] bg-[#161b22] px-3 py-2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-panel px-3 py-2">
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         spellCheck={false}
-        className="h-7 w-44 rounded-md border border-[#232a34] bg-[#0d1117] px-2 text-[13px] text-neutral-100 outline-none focus:border-sky-500"
+        className="h-7 w-44 rounded-md border border-input bg-background px-2 text-[13px] font-medium text-foreground outline-none focus:border-ring"
       />
 
-      <div className="h-5 w-px bg-[#232a34]" />
+      <div className="h-5 w-px bg-border" />
 
       {/* building envelope */}
-      <div className="flex items-center gap-1 text-[11px] text-neutral-500">
-        <span className="uppercase tracking-wide">Building</span>
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        <span className="mr-0.5">Building</span>
         <DimensionInput
           value={building.lengthFt}
           onCommit={(v) => setBuildingSize(v, building.widthFt)}
           title="Length (ft)"
         />
-        <span className="text-neutral-600">×</span>
+        <span>×</span>
         <DimensionInput
           value={building.widthFt}
           onCommit={(v) => setBuildingSize(building.lengthFt, v)}
           title="Width (ft)"
         />
-        <span className="text-neutral-600">ft</span>
+        <span>ft</span>
       </div>
 
-      <div className="h-5 w-px bg-[#232a34]" />
+      <div className="h-5 w-px bg-border" />
 
-      <div className="flex rounded-lg bg-[#0d1117] p-0.5">
+      <div className="flex rounded-lg bg-muted p-0.5">
         <Seg
           active={footprintMode === "footprint"}
           onClick={() => setFootprintMode("footprint")}
@@ -189,13 +191,13 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
         Court lines
       </Seg>
 
-      <div className="h-5 w-px bg-[#232a34]" />
+      <div className="h-5 w-px bg-border" />
 
       <div className="flex items-center gap-1">
         <Btn onClick={() => setZoom(Math.max(0.3, +(zoom - 0.15).toFixed(2)))} title="Zoom out">
           −
         </Btn>
-        <span className="w-11 text-center font-mono text-[11px] text-neutral-400">
+        <span className="w-11 text-center text-[11px] tabular-nums text-muted-foreground">
           {Math.round(zoom * 100)}%
         </span>
         <Btn onClick={() => setZoom(Math.min(3, +(zoom + 0.15).toFixed(2)))} title="Zoom in">
@@ -206,7 +208,7 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
         </Btn>
       </div>
 
-      <div className="h-5 w-px bg-[#232a34]" />
+      <div className="h-5 w-px bg-border" />
 
       <div className="flex items-center gap-1">
         <Btn onClick={undo} disabled={past.length === 0} title="Undo (⌘Z)">
@@ -221,7 +223,7 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
         <button
           onClick={onSave}
           disabled={saving || !dirty}
-          className="h-7 rounded-md bg-sky-500 px-3 text-[12px] font-medium text-white shadow transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+          className="h-7 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground shadow-xs transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? "Saving…" : dirty ? "Save" : "Saved"}
         </button>

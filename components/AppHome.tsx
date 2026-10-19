@@ -40,6 +40,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
   const [editor, setEditor] = useState<EditorState>(null)
   const [viewing, setViewing] = useState<PropertyRow | null>(null)
   const [view, setView] = useState<View>('list')
+  const [creatingPlan, setCreatingPlan] = useState(false)
   const [, startReload] = useTransition()
   // Ensures the one-time backfill of legacy rows runs only once per session.
   const backfilledRef = useRef(false)
@@ -216,7 +217,7 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
     <main className="max-w-[95vw] mx-auto w-full px-4 sm:px-6 py-4">
       <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="font-display text-2xl font-semibold text-foreground">
             {view === 'plans' ? 'Floor plans' : 'Properties'}
           </h1>
           {/* <p className="text-sm text-muted-foreground mt-0.5">
@@ -244,8 +245,14 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          {view !== 'plans' && (
-            <Button onClick={() => setEditor({ row: undefined })} className="gap-1.5">
+          {/* Same fixed width for both so the header doesn't shift between views. */}
+          {view === 'plans' ? (
+            <Button onClick={() => setCreatingPlan(true)} className="w-36 gap-1.5">
+              <Plus className="size-4" />
+              New floor plan
+            </Button>
+          ) : (
+            <Button onClick={() => setEditor({ row: undefined })} className="w-36 gap-1.5">
               <Plus className="size-4" />
               Add property
             </Button>
@@ -274,7 +281,14 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           demo={demo}
         />
       )}
-      {view === 'plans' && <FloorPlansTab properties={rows} demo={demo} />}
+      {view === 'plans' && (
+        <FloorPlansTab
+          properties={rows}
+          demo={demo}
+          creating={creatingPlan}
+          setCreating={setCreatingPlan}
+        />
+      )}
 
       <VerdictModal
         property={viewing}

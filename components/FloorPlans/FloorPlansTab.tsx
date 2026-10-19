@@ -112,14 +112,18 @@ function RenameDialog({
 export function FloorPlansTab({
   properties,
   demo = false,
+  creating,
+  setCreating,
 }: {
   properties: PropertyRow[]
   demo?: boolean
+  /** "New floor plan" dialog state — owned by AppHome, whose header holds the button. */
+  creating: boolean
+  setCreating: (open: boolean) => void
 }) {
   const [rows, setRows] = useState<FloorPlanRow[]>([])
   const [loaded, setLoaded] = useState(demo)
   const [editing, setEditing] = useState<Editing | null>(null)
-  const [creating, setCreating] = useState(false)
   const [renaming, setRenaming] = useState<FloorPlanRow | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [, start] = useTransition()
@@ -224,30 +228,24 @@ export function FloorPlansTab({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          {rows.length === 0
-            ? 'Lay out courts, rooms, and furniture to scale.'
-            : `${rows.length} saved plan${rows.length === 1 ? '' : 's'}.`}
-        </p>
-        <Button onClick={() => setCreating(true)} className="gap-1.5">
-          <Plus className="size-4" />
-          New floor plan
-        </Button>
-      </div>
+      <p className="mb-4 text-sm text-muted-foreground">
+        {rows.length === 0
+          ? 'Lay out courts, rooms, and furniture to scale.'
+          : `${rows.length} saved plan${rows.length === 1 ? '' : 's'}.`}
+      </p>
 
       {error && (
-        <p className="mb-3 rounded-md bg-rose-500/10 px-3 py-2 text-sm text-rose-300">{error}</p>
+        <p className="mb-3 rounded-md bg-risk/10 px-3 py-2 text-sm text-risk">{error}</p>
       )}
 
       {!loaded ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="surface h-56 animate-pulse rounded-2xl" />
+            <div key={i} className="surface h-56 animate-pulse" />
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border py-16 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border py-16 text-center">
           <p className="max-w-sm text-sm text-muted-foreground">
             No floor plans yet. Start from a blank building, or size one from a saved listing’s
             square footage and clear height.
@@ -263,11 +261,11 @@ export function FloorPlansTab({
             const layout = normalizeLayout(row.layout_json)
             const stats = layout ? planStats(layout) : null
             return (
-              <div key={row.id} className="surface flex flex-col rounded-2xl p-4">
+              <div key={row.id} className="surface flex flex-col p-4">
                 <button
                   type="button"
                   onClick={() => openExisting(row)}
-                  className="overflow-hidden rounded-lg ring-1 ring-border transition hover:ring-2 hover:ring-sky-400"
+                  className="overflow-hidden rounded-md ring-1 ring-border transition hover:ring-2 hover:ring-primary"
                   title="Open in the planner"
                 >
                   {layout ? (
@@ -281,10 +279,10 @@ export function FloorPlansTab({
 
                 <div className="mt-3 flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium" title={row.name}>
+                    <p className="truncate text-sm font-medium text-foreground" title={row.name}>
                       {row.name}
                     </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
+                    <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
                       {layout
                         ? `${layout.building.lengthFt}′ × ${layout.building.widthFt}′ · ${
                             stats?.totalCourts ?? 0

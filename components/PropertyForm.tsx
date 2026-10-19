@@ -37,7 +37,7 @@ const Field = (props: {
         }}
       />
       {isEmpty && props.hint && (
-        <p className="text-[11px] text-amber-300/80">{props.hint}</p>
+        <p className="text-[11px] text-caution">{props.hint}</p>
       )}
     </div>
   )

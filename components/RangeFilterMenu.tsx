@@ -70,8 +70,8 @@ export function RangeFilterMenu({
           {RANGE_FIELDS.map((f) => (
             <div key={f.key}>
               <div className="mb-1 flex items-baseline justify-between">
-                <span className="text-xs font-medium">{f.label}</span>
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                <span className="text-xs font-medium text-foreground">{f.label}</span>
+                <span className="text-[11px] text-muted-foreground">
                   {f.unit}
                 </span>
               </div>
@@ -85,7 +85,7 @@ export function RangeFilterMenu({
                   value={ranges[f.key].min}
                   onChange={(e) => setRange(f.key, 'min', e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
-                  className="h-8"
+                  className="h-8 tabular-nums"
                   aria-label={`Minimum ${f.label}`}
                 />
                 <span className="text-muted-foreground">–</span>
@@ -98,7 +98,7 @@ export function RangeFilterMenu({
                   value={ranges[f.key].max}
                   onChange={(e) => setRange(f.key, 'max', e.target.value)}
                   onKeyDown={(e) => e.stopPropagation()}
-                  className="h-8"
+                  className="h-8 tabular-nums"
                   aria-label={`Maximum ${f.label}`}
                 />
               </div>

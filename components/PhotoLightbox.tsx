@@ -46,7 +46,7 @@ export function PhotoLightbox({ images, initialIndex, open, onClose, sourceUrl }
         <DialogTitle className="sr-only">Property photo {index + 1} of {images.length}</DialogTitle>
 
         {/* Top bar */}
-        <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-between px-3 py-2.5 bg-gradient-to-b from-black/60 to-transparent">
+        <div className="absolute top-0 inset-x-0 z-10 flex items-center justify-between px-3 py-2.5">
           <div className="text-xs text-white/80 tabular-nums">
             {index + 1} / {images.length}
           </div>
@@ -57,7 +57,7 @@ export function PhotoLightbox({ images, initialIndex, open, onClose, sourceUrl }
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Open source listing"
-                className="inline-flex items-center gap-1 text-xs text-white/80 hover:text-white px-2 py-1 rounded hover:bg-white/10 transition"
+                className="inline-flex items-center gap-1 text-xs text-white/80 hover:text-white px-2 py-1 rounded-md hover:bg-white/10 transition-colors"
               >
                 <ExternalLink className="size-3.5" />
                 View source
@@ -67,7 +67,7 @@ export function PhotoLightbox({ images, initialIndex, open, onClose, sourceUrl }
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="size-8 p-0 text-white/80 hover:text-white hover:bg-white/10"
+              className="size-8 p-0 text-white/80 hover:text-white hover:bg-white/10 dark:hover:bg-white/10"
               aria-label="Close"
             >
               <X className="size-5" />
@@ -93,7 +93,7 @@ export function PhotoLightbox({ images, initialIndex, open, onClose, sourceUrl }
             variant="ghost"
             size="sm"
             onClick={() => setIndex((i) => Math.max(0, i - 1))}
-            className="absolute left-3 top-1/2 -translate-y-1/2 size-11 p-0 rounded-full bg-black/40 hover:bg-black/60 text-white/90 hover:text-white"
+            className="absolute left-3 top-1/2 -translate-y-1/2 size-11 p-0 rounded-full bg-black/40 hover:bg-black/60 dark:hover:bg-black/60 text-white/90 hover:text-white"
             aria-label="Previous photo"
           >
             <ChevronLeft className="size-6" />
@@ -106,7 +106,7 @@ export function PhotoLightbox({ images, initialIndex, open, onClose, sourceUrl }
             variant="ghost"
             size="sm"
             onClick={() => setIndex((i) => Math.min(images.length - 1, i + 1))}
-            className="absolute right-3 top-1/2 -translate-y-1/2 size-11 p-0 rounded-full bg-black/40 hover:bg-black/60 text-white/90 hover:text-white"
+            className="absolute right-3 top-1/2 -translate-y-1/2 size-11 p-0 rounded-full bg-black/40 hover:bg-black/60 dark:hover:bg-black/60 text-white/90 hover:text-white"
             aria-label="Next photo"
           >
             <ChevronRight className="size-6" />
@@ -115,13 +115,13 @@ export function PhotoLightbox({ images, initialIndex, open, onClose, sourceUrl }
 
         {/* Thumbnail strip on bottom */}
         {images.length > 1 && (
-          <div className="absolute bottom-0 inset-x-0 z-10 flex gap-1.5 overflow-x-auto px-3 py-2 bg-gradient-to-t from-black/70 to-transparent justify-center">
+          <div className="absolute bottom-0 inset-x-0 z-10 flex gap-1.5 overflow-x-auto px-3 py-2 bg-black/60 justify-center">
             {images.map((src, i) => (
               <button
                 key={src}
                 type="button"
                 onClick={() => setIndex(i)}
-                className={`shrink-0 h-12 w-16 rounded overflow-hidden ring-1 transition ${
+                className={`shrink-0 h-12 w-16 rounded-md overflow-hidden ring-1 transition ${
                   i === index
                     ? 'ring-white/80 opacity-100'
                     : 'ring-white/15 opacity-60 hover:opacity-100'

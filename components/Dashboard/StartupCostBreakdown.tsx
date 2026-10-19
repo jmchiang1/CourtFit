@@ -8,9 +8,9 @@ export function StartupCostBreakdown({ result }: { result: AnalysisResult }) {
 
   return (
     <div className="startup-cost-card surface p-5">
-      <div className="flex items-baseline justify-between mb-4">
-        <h3 className="text-sm font-semibold tracking-tight">
-          {adjusted ? 'Renovation — condition-adjusted' : 'Startup cost breakdown'}
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <h3 className="font-display text-sm font-semibold text-foreground">
+          Cost to open
         </h3>
         <span className="text-xs text-muted-foreground tabular-nums">
           {fmtMoney(startupCost.low)} – {fmtMoney(startupCost.high)} range
@@ -19,10 +19,10 @@ export function StartupCostBreakdown({ result }: { result: AnalysisResult }) {
 
       {adjusted && (
         <p className="mb-3 text-xs text-muted-foreground">
-          Scaled to the assessed condition of the space. Flat baseline:{' '}
+          Buildout is scaled to the assessed condition of the space. At the flat $/sf rate:{' '}
           <span className="tabular-nums text-foreground">{fmtMoney(startupCost.baselineMid)}</span>
           {Math.abs(delta) > 1 && (
-            <span className={delta > 0 ? 'text-amber-300' : 'text-emerald-300'}>
+            <span className={delta > 0 ? 'text-caution' : 'text-good'}>
               {' '}
               ({delta > 0 ? '+' : '−'}
               {fmtMoney(Math.abs(delta))})
@@ -36,10 +36,9 @@ export function StartupCostBreakdown({ result }: { result: AnalysisResult }) {
         {startupCost.breakdown.map((item) => (
           <Row key={item.label} item={item} />
         ))}
-        <div className="h-2" />
-        <div className="flex justify-between py-1.5">
-          <span className="font-semibold text-foreground">Total (mid estimate)</span>
-          <span className="font-semibold tabular-nums text-foreground">{fmtMoney(startupCost.mid)}</span>
+        <div className="mt-1 flex justify-between border-t border-border pt-2.5">
+          <span className="font-semibold text-foreground">Total cost to open</span>
+          <span className="font-display font-semibold tabular-nums text-foreground">{fmtMoney(startupCost.mid)}</span>
         </div>
       </div>
     </div>
@@ -50,16 +49,16 @@ function Row({ item }: { item: StartupCostLineItem }) {
   const m = item.multiplier
   const showMult = typeof m === 'number' && Math.abs(m - 1) > 0.01
   const tone =
-    m == null ? '' : m === 0 ? 'text-emerald-300' : m < 1 ? 'text-emerald-300' : m > 1.25 ? 'text-rose-300' : 'text-amber-300'
+    m == null ? '' : m === 0 ? 'text-good' : m < 1 ? 'text-good' : m > 1.25 ? 'text-risk' : 'text-caution'
 
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-white/5 last:border-0">
+    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-border last:border-0">
       <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
         <span className="truncate" title={item.note}>
           {item.label}
         </span>
         {showMult && (
-          <span className={`shrink-0 rounded bg-white/5 px-1 text-[10px] tabular-nums ${tone}`} title={item.note}>
+          <span className={`shrink-0 rounded-sm bg-muted px-1 text-[10px] tabular-nums ${tone}`} title={item.note}>
             ×{m!.toFixed(2).replace(/\.?0+$/, '')}
           </span>
         )}

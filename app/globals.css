@@ -46,126 +46,171 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  --animate-aurora: aurora 60s linear infinite;
 }
 
+/* ------------------------------------------------------------------------
+   CourtFit design tokens
+   Palette is drawn from the court itself: a deep court-mat green for the brand,
+   cool concrete greys for the warehouse floor, and a shuttle/optic yellow used
+   only as a tiny highlight. Semantic tones (good / info / caution / risk) are
+   exposed as Tailwind colors — use `text-good`, `bg-risk/10`, `ring-caution/25`
+   etc. instead of raw palette classes so both themes stay correct.
+   ------------------------------------------------------------------------ */
 :root {
-  /* Dark, brand-forward palette. Background is a deep ink; surfaces are
-     elevated panels; brand accent is a vibrant cyan-teal ("court light"). */
-  --bg-base: oklch(0.16 0.012 250);          /* page background */
-  --bg-elevated: oklch(0.21 0.014 250);      /* card / panel */
-  --bg-elevated-2: oklch(0.25 0.014 250);    /* hovered / nested */
-  --brand: oklch(0.82 0.16 195);             /* cyan-teal accent */
-  --brand-strong: oklch(0.74 0.18 195);
-  --brand-soft: oklch(0.82 0.16 195 / 0.14);
-  --success: oklch(0.78 0.16 160);
-  --warning: oklch(0.82 0.17 75);
-  --danger: oklch(0.72 0.20 25);
+  --court: #1c5a44;          /* brand: court-mat green */
+  --court-ink: #12392c;      /* deeper court for hero panels */
+  --line: #e3f24f;           /* shuttle / optic yellow highlight */
+  --paper: #f4f5f2;          /* page: cool concrete */
+  --panel: #ffffff;          /* card / popover */
+  --panel-2: #eceee9;        /* nested / hover */
+  --ink: #15201b;
+  --court-fill: #1c5a44;     /* court surfaces in plans / illustrations */
+  --pickle-fill: #2a5fb0;
 
-  --background: var(--bg-base);
-  --foreground: oklch(0.97 0.005 250);
-  --card: var(--bg-elevated);
-  --card-foreground: oklch(0.97 0.005 250);
-  --popover: var(--bg-elevated);
-  --popover-foreground: oklch(0.97 0.005 250);
-  --primary: var(--brand);
-  --primary-foreground: oklch(0.16 0.012 250);
-  --secondary: oklch(0.27 0.014 250);
-  --secondary-foreground: oklch(0.97 0.005 250);
-  --muted: oklch(0.25 0.012 250);
-  --muted-foreground: oklch(0.68 0.012 250);
-  --accent: var(--brand-soft);
-  --accent-foreground: var(--brand);
-  --destructive: var(--danger);
-  --border: oklch(1 0 0 / 0.08);
-  --input: oklch(1 0 0 / 0.10);
-  --ring: var(--brand);
-  --chart-1: oklch(0.82 0.16 195);
-  --chart-2: oklch(0.78 0.16 160);
-  --chart-3: oklch(0.72 0.14 270);
-  --chart-4: oklch(0.82 0.17 75);
-  --chart-5: oklch(0.55 0.02 250);
-  --radius: 4px;
-  --sidebar: var(--bg-elevated);
-  --sidebar-foreground: oklch(0.97 0.005 250);
-  --sidebar-primary: var(--brand);
-  --sidebar-primary-foreground: oklch(0.16 0.012 250);
-  --sidebar-accent: oklch(0.27 0.014 250);
-  --sidebar-accent-foreground: oklch(0.97 0.005 250);
-  --sidebar-border: oklch(1 0 0 / 0.08);
-  --sidebar-ring: var(--brand);
+  --good: #1f7a4b;
+  --info: #2a5fb0;
+  --caution: #9a6100;
+  --risk: #bb3a2c;
+
+  /* legacy aliases still referenced by SVG illustrations */
+  --brand: var(--court);
+  --brand-strong: var(--court-ink);
+  --brand-soft: color-mix(in oklab, var(--court) 10%, transparent);
+  --bg-base: var(--paper);
+  --bg-elevated: var(--panel);
+  --bg-elevated-2: var(--panel-2);
+  --success: var(--good);
+  --warning: var(--caution);
+  --danger: var(--risk);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--panel);
+  --card-foreground: var(--ink);
+  --popover: var(--panel);
+  --popover-foreground: var(--ink);
+  --primary: var(--court);
+  --primary-foreground: #ffffff;
+  --secondary: var(--panel-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--panel-2);
+  --muted-foreground: #5b6861;
+  --accent: color-mix(in oklab, var(--court) 8%, transparent);
+  --accent-foreground: var(--court);
+  --destructive: var(--risk);
+  --border: #dde1db;
+  --input: #d3d8d1;
+  --ring: var(--court);
+  --chart-1: var(--court);
+  --chart-2: #3f9d6f;
+  --chart-3: var(--info);
+  --chart-4: #c98a12;
+  --chart-5: #8a958f;
+  --radius: 0.625rem;
+  --sidebar: var(--panel);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--court);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--panel-2);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--court);
+  --shadow-color: 150 20% 15%;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --court: #4fb985;
+  --court-ink: #0f2a20;
+  --line: #e3f24f;
+  --paper: #0d1411;
+  --panel: #141d19;
+  --panel-2: #1b2621;
+  --ink: #e6ece8;
+  --court-fill: #2a6b51;
+  --pickle-fill: #36598f;
+
+  --good: #52c48c;
+  --info: #79a6f2;
+  --caution: #e3b04b;
+  --risk: #f07c6c;
+
+  --primary-foreground: #0b1a13;
+  --muted-foreground: #92a199;
+  --border: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.12);
+  --chart-2: #8fd6b0;
+  --chart-4: #e3b04b;
+  --chart-5: #5d6b64;
+  --shadow-color: 150 30% 2%;
+}
+
+@theme inline {
+  --color-court: var(--court);
+  --color-court-ink: var(--court-ink);
+  --color-line: var(--line);
+  --color-court-fill: var(--court-fill);
+  --color-pickle-fill: var(--pickle-fill);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-good: var(--good);
+  --color-info: var(--info);
+  --color-caution: var(--caution);
+  --color-risk: var(--risk);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground font-sans;
-    font-feature-settings: "cv11", "ss01";
-    letter-spacing: -0.01em;
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.82 0.16 195 / 0.10), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 100% 0%, oklch(0.72 0.14 270 / 0.06), transparent 60%);
-    background-attachment: fixed;
-  }
   html {
     @apply font-sans;
+    color-scheme: light;
+    /* No global scrollbar-gutter: it left an empty strip down the right edge.
+       Base UI's scroll lock reserves the gutter itself while a dialog or menu
+       is open, so the layout still doesn't shift. */
+  }
+  html.dark {
     color-scheme: dark;
-    /* Always reserve the scrollbar gutter so opening a dropdown/dialog (which
-       locks body scroll and hides the scrollbar) doesn't reflow the centered
-       layout and shift the page width. */
-    scrollbar-gutter: stable;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--line) 70%, transparent);
+    color: #15201b;
   }
   .tabular-nums {
     font-variant-numeric: tabular-nums;
   }
 }
 
+/* Archivo's width axis: headings and big figures run semi-expanded, like a
+   scoreboard; body copy stays at normal width. */
+@utility font-display {
+  font-variation-settings: "wdth" 118;
+  letter-spacing: -0.015em;
+}
+@utility font-wide {
+  font-variation-settings: "wdth" 110;
+}
+
 @utility surface {
-  background: var(--bg-elevated);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 
 @utility surface-2 {
-  background: var(--bg-elevated-2);
+  background: var(--panel-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: calc(var(--radius) * 0.8);
+}
+
+@utility shadow-lift {
+  box-shadow:
+    0 1px 2px hsl(var(--shadow-color) / 0.06),
+    0 8px 24px -12px hsl(var(--shadow-color) / 0.18);
 }
 /* Smooth open/close animation for base-ui Collapsible panels.
    The panel exposes --collapsible-panel-height during transitions;
@@ -197,57 +242,18 @@
   display: none;
 }
 
-/* --- Splash animations ---
-   Each class owns its animation, so timing / easing / distance are easy to tweak
-   right here. Elements set their stagger via an inline `animation-delay`. */
+/* --- Home page animation ---
+   One orchestrated moment: the pitch and the scorecard rise in, then the
+   scorecard's checks tick in one by one (stagger set inline). */
 @keyframes splashRise {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
 }
-@keyframes heroCourtDrop {
-  from { opacity: 0; transform: translateY(-56px); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes heroFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-7px); }
-}
-
-/* Aurora background (components/ui/aurora-background.tsx). Tailwind v4 has no
-   color-vars plugin, so the few palette colors the component references are
-   declared here, alongside the animation it loops. */
-@keyframes aurora {
-  from { background-position: 50% 50%, 50% 50%; }
-  to { background-position: 350% 50%, 350% 50%; }
-}
-:root {
-  --white: #fff;
-  --black: #000;
-  --transparent: transparent;
-  --blue-300: #93c5fd;
-  --blue-400: #60a5fa;
-  --blue-500: #3b82f6;
-  --indigo-300: #a5b4fc;
-  --violet-200: #ddd6fe;
-}
-
-/* Copy + feature cards rise and fade in. */
 .splashRise {
-  animation: splashRise 0.7s ease-out both;
+  animation: splashRise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-/* Hero court drops in from above and eases into place while fading in. */
-.heroCourtDrop {
-  animation: heroCourtDrop 0.9s ease-out both;
-}
-/* Floating product chips bob gently and forever. */
-.heroFloat {
-  animation: heroFloat 5s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .splashRise,
-  .heroCourtDrop,
-  .heroFloat {
+  .splashRise {
     animation: none;
   }
 }

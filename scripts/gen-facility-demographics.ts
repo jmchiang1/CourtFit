@@ -52,7 +52,7 @@ async function main() {
     if (demo) {
       out[f.name] = demo
       ok++
-      console.log(`${demo.totalPopulation.toLocaleString()} people · B${demo.badmintonFit.score}/P${demo.pickleballFit.score}`)
+      console.log(`${demo.totalPopulation.toLocaleString()} people · badminton ${demo.badmintonFit.score}`)
     } else {
       console.log('no data')
     }

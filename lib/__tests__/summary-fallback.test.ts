@@ -6,7 +6,7 @@ describe('generateFallbackSummary', () => {
     const text = generateFallbackSummary({
       address: '91-15 139th St, Jamaica, NY',
       rating: 'Risky',
-      courts: { badminton: 3, pickleball: 1, total: 4 },
+      courts: { badminton: 4, total: 4 },
       grossRevenue: 476_153,
       noi: 31_792,
       paybackYears: 12.27,
@@ -16,8 +16,8 @@ describe('generateFallbackSummary', () => {
       ],
     })
     expect(text).toMatch(/Risky/)
-    expect(text).toMatch(/3 badminton/)
-    expect(text).toMatch(/1 pickleball/)
+    expect(text).toMatch(/4 badminton courts/)
+    expect(text).not.toMatch(/pickleball/i)
     expect(text).toMatch(/Low ceiling|clear height/i)
     expect(text).toMatch(/Next steps/)
   })
@@ -26,7 +26,7 @@ describe('generateFallbackSummary', () => {
     const text = generateFallbackSummary({
       address: null,
       rating: 'Do Not Pursue',
-      courts: { badminton: 0, pickleball: 0, total: 0 },
+      courts: { badminton: 0, total: 0 },
       grossRevenue: 0,
       noi: -5000,
       paybackYears: null,
