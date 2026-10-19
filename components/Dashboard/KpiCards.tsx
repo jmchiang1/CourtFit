@@ -1,7 +1,7 @@
 import { fmtMoney, fmtPct } from '@/lib/format'
 import type { AnalysisResult } from '@/types/analysis'
 
-/** Secondary numbers under the verdict: one ruled strip, not four cards. */
+/** Secondary numbers under the verdict: one strip, separated by space alone. */
 export function KpiCards({ result }: { result: AnalysisResult }) {
   const items: Array<{
     label: string
@@ -33,12 +33,9 @@ export function KpiCards({ result }: { result: AnalysisResult }) {
   ]
 
   return (
-    <dl className="kpi-cards-row surface grid grid-cols-2 sm:grid-cols-4">
-      {items.map((i, idx) => (
-        <div
-          key={i.label}
-          className={`px-4 py-3.5 ${idx % 2 === 1 ? 'border-l' : ''} ${idx >= 2 ? 'border-t sm:border-t-0' : ''} ${idx === 2 ? 'sm:border-l' : ''}`}
-        >
+    <dl className="kpi-cards-row surface grid grid-cols-2 gap-x-6 gap-y-4 px-5 py-4 sm:grid-cols-4">
+      {items.map((i) => (
+        <div key={i.label}>
           <dt className="text-xs text-muted-foreground">{i.label}</dt>
           <dd
             className={`font-display mt-1 text-lg font-semibold tabular-nums ${

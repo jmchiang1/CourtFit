@@ -121,14 +121,17 @@ export function PhotoLightbox({ images, initialIndex, open, onClose, sourceUrl }
                 key={src}
                 type="button"
                 onClick={() => setIndex(i)}
-                className={`shrink-0 h-12 w-16 rounded-md overflow-hidden ring-1 transition ${
-                  i === index
-                    ? 'ring-white/80 opacity-100'
-                    : 'ring-white/15 opacity-60 hover:opacity-100'
+                aria-current={i === index ? 'true' : undefined}
+                className={`flex shrink-0 flex-col items-center gap-1 rounded-md transition outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                  i === index ? 'opacity-100' : 'opacity-50 hover:opacity-90'
                 }`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+                <img src={src} alt="" className="h-12 w-16 rounded-md object-cover" loading="lazy" />
+                {/* Selected marker: a filled bar under the active thumbnail. */}
+                <span
+                  className={`h-1 w-6 rounded-full ${i === index ? 'bg-white' : 'bg-transparent'}`}
+                />
               </button>
             ))}
           </div>

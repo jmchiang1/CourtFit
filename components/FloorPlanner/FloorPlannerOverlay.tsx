@@ -67,7 +67,7 @@ export function FloorPlannerOverlay({ planKey, layout, onSave, onClose }: Props)
   return (
     <div className="fixed inset-0 z-[120] bg-background">
       {error && (
-        <div className="absolute left-1/2 top-2 z-10 -translate-x-1/2 rounded-md border border-risk/30 bg-panel px-3 py-1.5 text-[12px] text-risk shadow-lift">
+        <div className="absolute left-1/2 top-2 z-10 -translate-x-1/2 rounded-md bg-panel px-3 py-1.5 text-[12px] text-risk shadow-lift">
           {error}
         </div>
       )}

@@ -25,27 +25,27 @@ export interface StatusMeta {
 export const STATUS_META: Record<PropertyStatus, StatusMeta> = {
   active: {
     label: 'Active',
-    badge: 'bg-muted text-muted-foreground ring-1 ring-inset ring-border',
+    badge: 'bg-muted text-muted-foreground',
     inactive: false,
   },
   contacted: {
     label: 'Contacted',
-    badge: 'bg-info/10 text-info ring-1 ring-inset ring-info/25',
+    badge: 'bg-info/10 text-info',
     inactive: false,
   },
   not_viable: {
     label: 'Not viable',
-    badge: 'bg-risk/10 text-risk ring-1 ring-inset ring-risk/25',
+    badge: 'bg-risk/10 text-risk',
     inactive: true,
   },
   leased: {
     label: 'Leased out',
-    badge: 'bg-caution/10 text-caution ring-1 ring-inset ring-caution/25',
+    badge: 'bg-caution/10 text-caution',
     inactive: true,
   },
   passed: {
     label: 'Passed',
-    badge: 'bg-muted text-muted-foreground ring-1 ring-inset ring-border',
+    badge: 'bg-muted text-muted-foreground',
     inactive: true,
   },
 }

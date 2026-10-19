@@ -34,14 +34,13 @@ export function RangeFilterMenu({
   align?: 'start' | 'end'
 }) {
   const active = countActiveRanges(ranges)
-  const setRange = (key: RangeKey, side: 'min' | 'max', value: string) =>
-    onChange({ ...ranges, [key]: { ...ranges[key], [side]: value } })
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size={size} className="gap-1.5">
+          // Matches the Select triggers it sits beside: same field fill, no shadow.
+          <Button variant="outline" size={size} className="gap-1.5 font-normal shadow-none">
             <SlidersHorizontal className={size === 'sm' ? 'size-3.5' : 'size-4'} />
             Filters
             {active > 0 && (
@@ -66,46 +65,62 @@ export function RangeFilterMenu({
           )}
         </div>
         <DropdownMenuSeparator className="my-2" />
-        <div className="space-y-3">
-          {RANGE_FIELDS.map((f) => (
-            <div key={f.key}>
-              <div className="mb-1 flex items-baseline justify-between">
-                <span className="text-xs font-medium text-foreground">{f.label}</span>
-                <span className="text-[11px] text-muted-foreground">
-                  {f.unit}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={f.step}
-                  placeholder="Min"
-                  value={ranges[f.key].min}
-                  onChange={(e) => setRange(f.key, 'min', e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  className="h-8 tabular-nums"
-                  aria-label={`Minimum ${f.label}`}
-                />
-                <span className="text-muted-foreground">–</span>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={f.step}
-                  placeholder="Max"
-                  value={ranges[f.key].max}
-                  onChange={(e) => setRange(f.key, 'max', e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  className="h-8 tabular-nums"
-                  aria-label={`Maximum ${f.label}`}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+        <RangeFields ranges={ranges} onChange={onChange} />
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** The min/max inputs for total sqft, clear height and lease price. */
+export function RangeFields({
+  ranges,
+  onChange,
+}: {
+  ranges: Ranges
+  onChange: (next: Ranges) => void
+}) {
+  const setRange = (key: RangeKey, side: 'min' | 'max', value: string) =>
+    onChange({ ...ranges, [key]: { ...ranges[key], [side]: value } })
+
+  return (
+    <div className="space-y-3">
+      {RANGE_FIELDS.map((f) => (
+        <div key={f.key}>
+          <div className="mb-1 flex items-baseline justify-between">
+            <span className="text-xs font-medium text-foreground">{f.label}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {f.unit}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={f.step}
+              placeholder="Min"
+              value={ranges[f.key].min}
+              onChange={(e) => setRange(f.key, 'min', e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="h-8 tabular-nums"
+              aria-label={`Minimum ${f.label}`}
+            />
+            <span className="text-muted-foreground">–</span>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={f.step}
+              placeholder="Max"
+              value={ranges[f.key].max}
+              onChange={(e) => setRange(f.key, 'max', e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              className="h-8 tabular-nums"
+              aria-label={`Maximum ${f.label}`}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
   )
 }

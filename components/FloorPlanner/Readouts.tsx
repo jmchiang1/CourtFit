@@ -83,10 +83,10 @@ export default function Readouts({ tally, diag }: Props) {
   const pct = usableFt2 > 0 ? (tally.courtAreaFt2 / usableFt2) * 100 : 0;
 
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col border-l border-border bg-panel">
+    <aside className="flex h-full w-72 shrink-0 flex-col overflow-hidden rounded-xl bg-panel">
       <div className="min-h-0 flex-1 overflow-y-auto">
         {multi && (
-          <div className="border-b border-border p-3">
+          <div className="px-3 pb-4 pt-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="font-display text-sm font-semibold text-foreground">
                 {selectedIds.length} selected
@@ -101,19 +101,19 @@ export default function Readouts({ tally, diag }: Props) {
             <div className="grid grid-cols-3 gap-1.5">
               <button
                 onClick={() => rotateItems(selectedIds)}
-                className="rounded-md border border-border py-1.5 text-[12px] text-foreground shadow-xs transition hover:bg-muted"
+                className="rounded-md bg-field py-1.5 text-[12px] text-foreground outline-none transition hover:bg-field-hover focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Rotate
               </button>
               <button
                 onClick={() => duplicateItems(selectedIds)}
-                className="rounded-md border border-border py-1.5 text-[12px] text-foreground shadow-xs transition hover:bg-muted"
+                className="rounded-md bg-field py-1.5 text-[12px] text-foreground outline-none transition hover:bg-field-hover focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Clone
               </button>
               <button
                 onClick={() => removeItems(selectedIds)}
-                className="rounded-md border border-risk/30 py-1.5 text-[12px] text-risk shadow-xs transition hover:bg-risk/10"
+                className="rounded-md bg-risk/10 py-1.5 text-[12px] font-medium text-risk outline-none transition hover:bg-risk/15 focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Delete
               </button>
@@ -121,7 +121,7 @@ export default function Readouts({ tally, diag }: Props) {
           </div>
         )}
         {selected && (
-          <div className="border-b border-border p-3">
+          <div className="px-3 pb-4 pt-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="font-display text-sm font-semibold text-foreground">
                 Selected
@@ -142,7 +142,7 @@ export default function Readouts({ tally, diag }: Props) {
               onChange={(e) => renameItem(selected.id, e.target.value)}
               onBlur={(e) => renameItem(selected.id, e.target.value.trim())}
               aria-label="Piece name"
-              className="w-full rounded-md border border-input bg-background px-2 py-1 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-ring"
+              className="w-full rounded-md bg-field px-2 py-1 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
             />
             <div className="mb-2 mt-1 truncate text-xs text-muted-foreground">
               {selKind}
@@ -165,19 +165,19 @@ export default function Readouts({ tally, diag }: Props) {
             <div className="grid grid-cols-3 gap-1.5">
               <button
                 onClick={() => rotateItem(selected.id)}
-                className="rounded-md border border-border py-1.5 text-[12px] text-foreground shadow-xs transition hover:bg-muted"
+                className="rounded-md bg-field py-1.5 text-[12px] text-foreground outline-none transition hover:bg-field-hover focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Rotate
               </button>
               <button
                 onClick={() => duplicateItem(selected.id)}
-                className="rounded-md border border-border py-1.5 text-[12px] text-foreground shadow-xs transition hover:bg-muted"
+                className="rounded-md bg-field py-1.5 text-[12px] text-foreground outline-none transition hover:bg-field-hover focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Clone
               </button>
               <button
                 onClick={() => removeItem(selected.id)}
-                className="rounded-md border border-risk/30 py-1.5 text-[12px] text-risk shadow-xs transition hover:bg-risk/10"
+                className="rounded-md bg-risk/10 py-1.5 text-[12px] font-medium text-risk outline-none transition hover:bg-risk/15 focus-visible:ring-2 focus-visible:ring-ring"
               >
                 Delete
               </button>

@@ -44,7 +44,7 @@ export function VerdictHero({ result }: { result: AnalysisResult }) {
         </h2>
         <p className="mt-2 max-w-xl text-sm text-white/70">{blurb[result.rating]}</p>
 
-        <dl className="mt-6 grid grid-cols-3 border-t border-white/15">
+        <dl className="mt-6 grid grid-cols-3 gap-2 sm:gap-3">
           <Stat
             label="Net operating income"
             value={fmtMoney(result.noi)}
@@ -82,8 +82,8 @@ function Stat({
   tone?: 'good' | 'warn' | 'bad'
 }) {
   return (
-    <div className="min-w-0 border-white/15 pt-4 pr-3 not-first:border-l not-first:pl-4 sm:not-first:pl-6">
-      <dt className="truncate text-xs text-white/60">{label}</dt>
+    <div className="min-w-0 rounded-lg bg-white/[0.07] px-3 py-3 sm:px-4">
+      <dt className="truncate text-xs text-white/70">{label}</dt>
       <dd
         className={`font-display mt-1 text-2xl font-semibold tabular-nums sm:text-3xl ${
           tone ? toneText[tone] : 'text-white'
@@ -91,7 +91,7 @@ function Stat({
       >
         {value}
       </dd>
-      <dd className="mt-0.5 truncate text-xs text-white/60 tabular-nums">{sub}</dd>
+      <dd className="mt-0.5 truncate text-xs text-white/70 tabular-nums">{sub}</dd>
     </div>
   )
 }

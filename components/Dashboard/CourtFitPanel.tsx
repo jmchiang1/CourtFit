@@ -42,7 +42,7 @@ export function CourtFitPanel({ result, listing, assumptions: a }: Props) {
         <p className="mt-1 text-xs text-muted-foreground">{comparison}</p>
       </div>
 
-      <dl className="divide-y divide-border border-t text-sm">
+      <dl className="space-y-1.5 text-sm">
         <Row
           label="Court footprint"
           value={`${a.courtSqft.toLocaleString()} sf`}
@@ -60,7 +60,7 @@ export function CourtFitPanel({ result, listing, assumptions: a }: Props) {
 
 function Row({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2.5 last:pb-0">
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-muted/60 px-3 py-2.5">
       <div className="min-w-0">
         <dt className="text-foreground">{label}</dt>
         <dd className="text-xs text-muted-foreground">{sub}</dd>

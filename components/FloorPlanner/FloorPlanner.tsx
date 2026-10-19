@@ -163,11 +163,11 @@ export default function FloorPlanner({ onClose, onSave, saving }: Props) {
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onKeyUp={onKeyUp}
-      className="flex h-full w-full overflow-hidden bg-background text-foreground outline-none"
+      className="flex h-full w-full gap-2 overflow-hidden bg-background p-2 text-foreground outline-none"
     >
       <Palette />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         <Toolbar
           zoom={zoom}
           setZoom={setZoom}
@@ -200,7 +200,7 @@ export default function FloorPlanner({ onClose, onSave, saving }: Props) {
             zones={zones}
           />
 
-          <div className="pointer-events-none sticky bottom-3 left-3 z-10 ml-3 inline-flex flex-col gap-1 rounded-lg border border-border bg-panel/90 px-3 py-2 text-[10px] text-muted-foreground shadow-lift backdrop-blur">
+          <div className="pointer-events-none sticky bottom-3 left-3 z-10 ml-3 inline-flex flex-col gap-1 rounded-lg bg-panel/90 px-3 py-2 text-[10px] text-muted-foreground shadow-lift backdrop-blur">
             <div className="flex items-center gap-2">
               <span className="inline-block h-2.5 w-3.5 rounded-sm border border-dashed border-risk bg-risk/20" />
               Warning — low ceiling / overlap / out of bounds

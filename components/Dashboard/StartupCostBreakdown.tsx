@@ -32,11 +32,11 @@ export function StartupCostBreakdown({ result }: { result: AnalysisResult }) {
         </p>
       )}
 
-      <div className="text-sm tabular-nums">
+      <div className="-mx-2.5 text-sm tabular-nums">
         {startupCost.breakdown.map((item) => (
           <Row key={item.label} item={item} />
         ))}
-        <div className="mt-1 flex justify-between border-t border-border pt-2.5">
+        <div className="mt-1.5 flex justify-between rounded-md bg-field px-2.5 py-2">
           <span className="font-semibold text-foreground">Total cost to open</span>
           <span className="font-display font-semibold tabular-nums text-foreground">{fmtMoney(startupCost.mid)}</span>
         </div>
@@ -52,13 +52,13 @@ function Row({ item }: { item: StartupCostLineItem }) {
     m == null ? '' : m === 0 ? 'text-good' : m < 1 ? 'text-good' : m > 1.25 ? 'text-risk' : 'text-caution'
 
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5 border-b border-border last:border-0">
+    <div className="flex items-center justify-between gap-3 rounded-md px-2.5 py-1.5 odd:bg-muted/40">
       <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
         <span className="truncate" title={item.note}>
           {item.label}
         </span>
         {showMult && (
-          <span className={`shrink-0 rounded-sm bg-muted px-1 text-[10px] tabular-nums ${tone}`} title={item.note}>
+          <span className={`shrink-0 rounded-sm bg-field px-1 text-[10px] tabular-nums ${tone}`} title={item.note}>
             ×{m!.toFixed(2).replace(/\.?0+$/, '')}
           </span>
         )}

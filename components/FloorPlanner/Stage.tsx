@@ -100,7 +100,7 @@ export default function Stage({ items, ppf, mode, selectedIds, diag, building, z
         className="relative mx-auto mb-2 text-center text-[11px] tabular-nums text-muted-foreground"
         style={{ width: W }}
       >
-        <span className="rounded bg-panel px-2 py-0.5 ring-1 ring-border">← {building.lengthFt} ft →</span>
+        <span className="rounded bg-panel px-2 py-0.5">← {building.lengthFt} ft →</span>
       </div>
 
       <div className="flex items-start gap-2">
@@ -108,7 +108,7 @@ export default function Stage({ items, ppf, mode, selectedIds, diag, building, z
           className="flex items-center justify-center text-[11px] tabular-nums text-muted-foreground"
           style={{ height: H, width: 20 }}
         >
-          <span className="-rotate-90 whitespace-nowrap rounded bg-panel px-2 py-0.5 ring-1 ring-border">
+          <span className="-rotate-90 whitespace-nowrap rounded bg-panel px-2 py-0.5">
             ↕ {building.widthFt} ft
           </span>
         </div>

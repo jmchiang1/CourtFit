@@ -16,6 +16,9 @@ import {
   updateReferenceFacility,
 } from '@/app/actions/reference-facilities'
 import type { ReferenceFacilityRow } from '@/lib/supabase/types'
+import type { Sport } from '@/lib/reference-facilities'
+
+const SPORTS: Sport[] = ['Badminton', 'Pickleball']
 
 export function AddFacilityDialog({
   open,
@@ -31,27 +34,31 @@ export function AddFacilityDialog({
 }) {
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
+  const [sports, setSports] = useState<Sport[]>([])
   const [error, setError] = useState<string | null>(null)
   const [pending, start] = useTransition()
 
   const isEdit = !!editing
 
   // Initialize the fields each time the dialog opens — from the facility being
-  // edited, or blank for a new one. Facilities are badminton-only, so there's
-  // no sport picker — the server action fills in the sports.
+  // edited, or blank (badminton pre-selected) for a new one.
   useEffect(() => {
     if (!open) return
     setName(editing?.name ?? '')
     setAddress(editing?.address ?? '')
+    setSports((editing?.sports as Sport[]) ?? ['Badminton'])
     setError(null)
   }, [open, editing])
+
+  const toggleSport = (s: Sport) =>
+    setSports((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
 
   const submit = () => {
     setError(null)
     start(async () => {
       const r = editing
-        ? await updateReferenceFacility(editing.id, { name, address })
-        : await addReferenceFacility({ name, address })
+        ? await updateReferenceFacility(editing.id, { name, address, sports })
+        : await addReferenceFacility({ name, address, sports })
       if ('error' in r) {
         setError(r.error)
         return
@@ -69,7 +76,7 @@ export function AddFacilityDialog({
             {isEdit ? 'Edit reference facility' : 'Add reference facility'}
           </DialogTitle>
           <DialogDescription>
-            A competing badminton facility. We’ll geocode the address and pull its 5-mile demand.
+            A competitor or reference club. We’ll geocode the address and pull its local demand. Only clubs with badminton count toward competition scores.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -100,6 +107,27 @@ export function AddFacilityDialog({
               disabled={pending}
               required
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Sports</Label>
+            <div className="flex gap-2">
+              {SPORTS.map((s) => {
+                const selected = sports.includes(s)
+                return (
+                  <Button
+                    key={s}
+                    type="button"
+                    size="sm"
+                    variant={selected ? 'default' : 'outline'}
+                    aria-pressed={selected}
+                    onClick={() => toggleSport(s)}
+                    disabled={pending}
+                  >
+                    {s}
+                  </Button>
+                )
+              })}
+            </div>
           </div>
           {error && <p className="text-sm text-risk">{error}</p>}
           <Button type="submit" disabled={pending} className="w-full">

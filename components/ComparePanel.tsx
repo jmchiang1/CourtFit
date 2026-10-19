@@ -146,14 +146,14 @@ export function ComparePanel({ rows, sites, onView }: Props) {
             </div>
           ))}
         </div>
-        <p className="mt-4 border-t border-border pt-3 text-xs leading-snug text-muted-foreground">
+        <p className="mt-5 text-xs leading-snug text-muted-foreground">
           Each dimension is scored relative to your other candidates. Adjust the sliders to match
           what matters most for this deal.
         </p>
       </aside>
 
       {/* Leaderboard */}
-      <div className="compare-leaderboard surface h-fit divide-y divide-border overflow-hidden">
+      <div className="compare-leaderboard surface h-fit overflow-hidden">
         {ranked.map((c) => {
           const row = byId.get(c.id)
           return (
@@ -161,7 +161,7 @@ export function ComparePanel({ rows, sites, onView }: Props) {
               key={c.id}
               type="button"
               onClick={() => row && onView(row)}
-              className="compare-row block w-full p-3.5 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:bg-muted"
+              className="compare-row block w-full p-3.5 text-left outline-none transition-colors even:bg-muted/40 hover:bg-muted/70 focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <div className="flex items-center gap-3">
                 <div className="font-display flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold tabular-nums text-primary">

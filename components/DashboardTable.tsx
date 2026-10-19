@@ -347,23 +347,19 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
           </SelectContent>
         </Select>
 
-        {/* Adjustable numeric range filters (total sqft, clear height, lease price) */}
-        <RangeFilterMenu ranges={ranges} onChange={setRanges} />
-
         {/* Interested-only toggle */}
         <Button
           variant={interestedOnly ? 'default' : 'outline'}
-          size="sm"
           onClick={() => setInterestedOnly((v) => !v)}
           aria-pressed={interestedOnly}
-          className="h-9 gap-1.5"
+          className="gap-1.5 font-normal shadow-none"
         >
           <Star className={`size-3.5 ${interestedOnly ? 'fill-current' : ''}`} />
           Interested
         </Button>
 
-        {/* Which table headers to show */}
-        <ColumnPickerMenu prefs={columnPrefs} onChange={changePrefs} />
+        {/* Adjustable numeric range filters (total sqft, clear height, lease price) */}
+        <RangeFilterMenu ranges={ranges} onChange={setRanges} />
 
         <div className="ml-auto flex items-center gap-2">
           {anyFilterActive && (
@@ -377,15 +373,14 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
               Clear
             </Button>
           )}
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {filteredSorted.length} {filteredSorted.length === 1 ? 'property' : 'properties'}
-          </span>
+          {/* Which table headers to show — the count lives in the pagination footer. */}
+          <ColumnPickerMenu prefs={columnPrefs} onChange={changePrefs} />
         </div>
       </div>
 
       <div className="surface overflow-hidden">
         <Table>
-          <TableHeader className="bg-muted/40">
+          <TableHeader className="bg-muted/60">
             <TableRow className="hover:bg-transparent">
               {shownColumns.map((c) => (
                 <SortHeader
@@ -430,7 +425,7 @@ export function DashboardTable({ rows, onView, onEdit, onDelete, onStatusChange,
               return (
               <TableRow
                 key={row.id}
-                className={`cursor-pointer hover:bg-muted/50 ${
+                className={`cursor-pointer even:bg-muted/40 hover:bg-muted/70 ${
                   STATUS_META[status].inactive ? 'opacity-55' : ''
                 }`}
                 onClick={() => onView(row)}
@@ -597,7 +592,7 @@ function Cell({
               className={`shrink-0 inline-flex items-center rounded-md p-0.5 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${
                 row.interested
                   ? 'text-caution hover:text-caution/80'
-                  : 'text-muted-foreground/40 hover:text-foreground'
+                  : 'text-muted-foreground/80 hover:text-foreground'
               }`}
             >
               <Star className={`size-4 ${row.interested ? 'fill-current' : ''}`} />

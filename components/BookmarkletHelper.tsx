@@ -115,14 +115,14 @@ export function BookmarkletHelper() {
             <li>The form will auto-extract and populate</li>
           </ol>
 
-          <details className="rounded-md border bg-muted/60 px-3 py-2">
+          <details className="rounded-md bg-muted/60 px-3 py-2">
             <summary className="cursor-pointer text-xs font-medium text-foreground">
               Bookmarklet not working? Drag failed? Click here for the manual install.
             </summary>
             <div className="mt-2 space-y-2 text-xs">
               <p>
                 If the drag didn&apos;t produce a bookmark with a{' '}
-                <code className="px-1 rounded bg-muted ring-1 ring-inset ring-border">javascript:</code> URL, some browsers block
+                <code className="px-1 rounded bg-field-hover">javascript:</code> URL, some browsers block
                 that for security. Workaround:
               </p>
               <ol className="list-decimal list-inside space-y-1">
@@ -131,7 +131,7 @@ export function BookmarkletHelper() {
                   <strong>New bookmark</strong>)
                 </li>
                 <li>
-                  Name: <code className="px-1 rounded bg-muted ring-1 ring-inset ring-border">Save to Kotofit</code>
+                  Name: <code className="px-1 rounded bg-field-hover">Save to Kotofit</code>
                 </li>
                 <li>URL: copy the full code below and paste into the URL field:</li>
               </ol>
@@ -140,7 +140,7 @@ export function BookmarkletHelper() {
                   readOnly
                   value={href}
                   rows={3}
-                  className="flex-1 font-mono text-[10px] bg-panel text-foreground ring-1 ring-inset ring-border rounded-md px-2 py-1.5 break-all"
+                  className="flex-1 font-mono text-[10px] bg-panel text-foreground rounded-md px-2 py-1.5 break-all"
                   onClick={(e) => (e.target as HTMLTextAreaElement).select()}
                 />
                 <button
@@ -156,7 +156,7 @@ export function BookmarkletHelper() {
 
           <p className="text-xs text-muted-foreground">
             The bookmarklet URL is tied to{' '}
-            <code className="px-1 py-0.5 rounded bg-muted ring-1 ring-inset ring-border">{origin}</code>. If
+            <code className="px-1 py-0.5 rounded bg-muted">{origin}</code>. If
             you change where this app runs, drag a fresh bookmarklet.
           </p>
         </div>

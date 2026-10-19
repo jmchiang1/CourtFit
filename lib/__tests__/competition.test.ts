@@ -23,9 +23,11 @@ function row(over: Partial<ReferenceFacilityRow>): ReferenceFacilityRow {
 }
 
 describe('built-in reference facilities', () => {
-  it('all offer badminton', () => {
-    expect(REFERENCE_FACILITIES.length).toBeGreaterThan(0)
-    for (const f of REFERENCE_FACILITIES) expect(f.sports).toContain('Badminton')
+  it('include pickleball-only clubs for the map, but only badminton clubs compete', () => {
+    const pickleOnly = REFERENCE_FACILITIES.filter((f) => !f.sports.includes('Badminton'))
+    expect(pickleOnly.length).toBeGreaterThan(0)
+    const competing = buildCompetitorSites().map((s) => s.name)
+    for (const f of pickleOnly) expect(competing).not.toContain(f.name)
   })
 
   it('baked demographics match the facility list and carry no pickleball fields', () => {
@@ -50,7 +52,8 @@ describe('buildCompetitorSites', () => {
     expect(names).not.toContain('No coords')
     expect(names).toContain('Both')
     expect(names).toContain('Badminton only')
-    expect(sites.length).toBe(REFERENCE_FACILITIES.length + 2)
+    const builtinBadminton = REFERENCE_FACILITIES.filter((f) => f.sports.includes('Badminton')).length
+    expect(sites.length).toBe(builtinBadminton + 2)
   })
 })
 

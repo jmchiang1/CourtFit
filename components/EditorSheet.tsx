@@ -98,7 +98,7 @@ export function EditorSheet({ initial, onClose, onSaved }: Props) {
     >
       <SheetContent className="editor-sheet w-full overflow-y-auto p-0 data-[side=right]:sm:max-w-[90vw] data-[side=right]:lg:max-w-[80vw] data-[side=right]:xl:max-w-[70vw]">
         <div className="flex flex-col min-h-full">
-          <SheetHeader className="border-b border-border px-5 py-4 sticky top-0 bg-popover z-10">
+          <SheetHeader className="px-5 py-4 sticky top-0 bg-popover z-10">
             <SheetTitle className="font-display text-lg font-semibold text-foreground">
               {savedId ? 'Edit property' : 'Add new property'}
             </SheetTitle>
@@ -117,7 +117,7 @@ export function EditorSheet({ initial, onClose, onSaved }: Props) {
           </div>
 
           {/* Live verdict preview footer — sticks at the bottom of the sheet */}
-          <div className="border-t border-border bg-popover px-5 py-3 sticky bottom-0 z-10">
+          <div className="bg-popover px-5 py-3 sticky bottom-0 z-10 shadow-[0_-8px_24px_-12px_hsl(var(--shadow-color)/0.18)]">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2 tabular-nums">
                 <RatingBadge rating={result.rating} />

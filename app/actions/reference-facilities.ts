@@ -9,19 +9,15 @@ import type { ReferenceFacilityRow } from '@/lib/supabase/types'
 export interface AddFacilityInput {
   name: string
   address: string
-  /**
-   * Optional — the app is badminton-only, so the client no longer sends a sport
-   * choice. Omitted ⇒ ['Badminton'] on add, or the facility's existing sports
-   * on edit. 'Badminton' is always included either way.
-   */
-  sports?: string[]
+  /** Which sports the facility runs. Only facilities that offer badminton
+   *  count toward competition scoring; pickleball-only ones are map reference. */
+  sports: string[]
 }
 
-/** Keep known sports only and guarantee 'Badminton' is listed. */
+/** Keep known sports only, de-duplicated. */
 function normalizeSports(sports: readonly string[] | null | undefined): string[] {
   const valid = (sports ?? []).filter((s) => s === 'Badminton' || s === 'Pickleball')
-  const unique = Array.from(new Set(valid))
-  return unique.includes('Badminton') ? unique : ['Badminton', ...unique]
+  return Array.from(new Set(valid))
 }
 
 /**
@@ -63,6 +59,7 @@ export async function addReferenceFacility(
   const sports = normalizeSports(input.sports)
   if (!name) return { error: 'Name is required.' }
   if (!address) return { error: 'Address is required.' }
+  if (sports.length === 0) return { error: 'Pick at least one sport.' }
 
   const geocoded = await geocodeAddress(address)
   if (!geocoded.ok) return { error: "Couldn't find that address on the map." }
@@ -94,7 +91,7 @@ export async function addReferenceFacility(
 
 /**
  * Edit a reference facility. Only re-geocodes (and refetches demographics) when
- * the address actually changes; a name-only edit keeps the cached coords.
+ * the address actually changes; a name/sports-only edit keeps the cached coords.
  */
 export async function updateReferenceFacility(
   id: string,
@@ -106,16 +103,16 @@ export async function updateReferenceFacility(
 
   const name = input.name.trim()
   const address = input.address.trim()
+  const sports = normalizeSports(input.sports)
   if (!name) return { error: 'Name is required.' }
   if (!address) return { error: 'Address is required.' }
+  if (sports.length === 0) return { error: 'Pick at least one sport.' }
 
   const { data: existing } = await sb
     .from('reference_facilities')
-    .select('address, sports, latitude, longitude, geocoded_at, demographics_json, demographics_at')
+    .select('address, latitude, longitude, geocoded_at, demographics_json, demographics_at')
     .eq('id', id)
     .single()
-
-  const sports = normalizeSports(input.sports ?? existing?.sports)
 
   let geo = {
     latitude: existing?.latitude ?? null,

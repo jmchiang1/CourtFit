@@ -28,7 +28,7 @@ export default function Palette() {
   }) => (
     <button
       onClick={onClick}
-      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-foreground transition hover:bg-muted active:bg-muted/80"
+      className="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] text-foreground transition outline-none hover:bg-field active:bg-field-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
       {swatch}
       <span className="flex-1 truncate">{label}</span>
@@ -54,7 +54,7 @@ export default function Palette() {
   const spawn = (category: Category, type: string) => addItem(category, type);
 
   return (
-    <aside className="flex h-full w-56 shrink-0 flex-col border-r border-border bg-panel">
+    <aside className="flex h-full w-56 shrink-0 flex-col overflow-hidden rounded-xl bg-panel">
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-6">
         <Header id="courts" title="Courts" />
         {open.courts && (
@@ -67,8 +67,8 @@ export default function Palette() {
                   onClick={() => spawn("court", k)}
                   swatch={
                     <span
-                      className="inline-block h-3.5 w-5 shrink-0 rounded-[2px] border"
-                      style={{ background: c.color, borderColor: c.color }}
+                      className="inline-block h-3.5 w-5 shrink-0 rounded-[2px]"
+                      style={{ background: c.color }}
                     />
                   }
                   label={c.label}
@@ -112,10 +112,9 @@ export default function Palette() {
                   onClick={() => spawn("item", k)}
                   swatch={
                     <span
-                      className="inline-block h-3.5 w-5 shrink-0 border"
+                      className="inline-block h-3.5 w-5 shrink-0"
                       style={{
                         background: it.color,
-                        borderColor: "color-mix(in oklab, var(--foreground) 20%, transparent)",
                         borderRadius: "round" in it && it.round ? "50%" : 2,
                       }}
                     />
@@ -129,7 +128,7 @@ export default function Palette() {
         )}
       </div>
 
-      <div className="border-t border-border px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
+      <div className="bg-field/60 px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
         Click to add · drag to place · handles resize · select to rename
       </div>
     </aside>

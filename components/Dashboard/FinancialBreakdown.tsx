@@ -8,7 +8,6 @@ import type { AnalysisResult } from '@/types/analysis'
 // light/dark toggle without re-rendering.
 const CHART = {
   tick: 'var(--muted-foreground)',
-  axis: 'var(--border)',
   cursor: 'color-mix(in oklab, var(--foreground) 5%, transparent)',
   barTop: 'var(--court)',
   bar: 'color-mix(in oklab, var(--muted-foreground) 35%, transparent)',
@@ -40,21 +39,25 @@ export function FinancialBreakdown({ result }: { result: AnalysisResult }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="text-sm tabular-nums">
-          <Row label="Court rentals" value={fmtMoney(r.courtRental)} />
-          <Row label="Open play" value={fmtMoney(r.openPlay)} />
-          <Row label="Coaching & clinics" value={fmtMoney(r.coaching)} />
-          <Row label="Pro shop and F&B" value={fmtMoney(r.proShop + r.foodBeverage)} />
-          <Row label="Card surcharge" value={fmtMoney(r.cardSurcharge)} />
-          <Row label="Gross revenue" value={fmtMoney(r.gross)} bold />
+          <div className="-mx-2.5">
+            <Row label="Court rentals" value={fmtMoney(r.courtRental)} />
+            <Row label="Open play" value={fmtMoney(r.openPlay)} />
+            <Row label="Coaching & clinics" value={fmtMoney(r.coaching)} />
+            <Row label="Pro shop and F&B" value={fmtMoney(r.proShop + r.foodBeverage)} />
+            <Row label="Card surcharge" value={fmtMoney(r.cardSurcharge)} />
+            <Row label="Gross revenue" value={fmtMoney(r.gross)} bold />
+          </div>
           <div className="h-3" />
-          <Row label="Cost of goods sold" value={fmtMoney(result.costOfSales.total)} />
-          <Row label="Operating expenses" value={fmtMoney(e.total)} />
-          <Row
-            label="Net operating income"
-            value={fmtMoney(result.noi)}
-            bold
-            highlight={result.noi > 0 ? 'text-good' : 'text-risk'}
-          />
+          <div className="-mx-2.5">
+            <Row label="Cost of goods sold" value={fmtMoney(result.costOfSales.total)} />
+            <Row label="Operating expenses" value={fmtMoney(e.total)} />
+            <Row
+              label="Net operating income"
+              value={fmtMoney(result.noi)}
+              bold
+              highlight={result.noi > 0 ? 'text-good' : 'text-risk'}
+            />
+          </div>
           <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
             Year one, while bookings ramp up: {fmtMoney(result.yearOne.revenue)} revenue,{' '}
             <span className={result.yearOne.noi > 0 ? 'text-foreground' : 'text-risk'}>
@@ -70,7 +73,7 @@ export function FinancialBreakdown({ result }: { result: AnalysisResult }) {
                 dataKey="name"
                 tick={{ fontSize: 10, fill: CHART.tick }}
                 tickLine={false}
-                axisLine={{ stroke: CHART.axis }}
+                axisLine={false}
               />
               <YAxis
                 tick={{ fontSize: 10, fill: CHART.tick }}
@@ -83,7 +86,7 @@ export function FinancialBreakdown({ result }: { result: AnalysisResult }) {
                 cursor={{ fill: CHART.cursor }}
                 contentStyle={{
                   background: 'var(--popover)',
-                  border: '1px solid var(--border)',
+                  border: 'none',
                   borderRadius: 8,
                   fontSize: 12,
                   boxShadow:
@@ -120,7 +123,11 @@ const Row = ({
   bold?: boolean
   highlight?: string
 }) => (
-  <div className="flex justify-between py-1.5 border-b border-border last:border-0">
+  <div
+    className={`flex justify-between rounded-md px-2.5 py-1.5 ${
+      bold ? 'mt-1.5 bg-field' : 'odd:bg-muted/40'
+    }`}
+  >
     <span className={bold ? 'font-semibold text-foreground' : 'text-muted-foreground'}>
       {label}
     </span>

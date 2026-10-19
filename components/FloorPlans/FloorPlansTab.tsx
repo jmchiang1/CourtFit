@@ -245,7 +245,7 @@ export function FloorPlansTab({
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border py-16 text-center">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl bg-field/60 py-16 text-center">
           <p className="max-w-sm text-sm text-muted-foreground">
             No floor plans yet. Start from a blank building, or size one from a saved listing’s
             square footage and clear height.
@@ -265,7 +265,7 @@ export function FloorPlansTab({
                 <button
                   type="button"
                   onClick={() => openExisting(row)}
-                  className="overflow-hidden rounded-md ring-1 ring-border transition hover:ring-2 hover:ring-primary"
+                  className="overflow-hidden rounded-md outline-none transition hover:opacity-85 focus-visible:ring-2 focus-visible:ring-ring"
                   title="Open in the planner"
                 >
                   {layout ? (

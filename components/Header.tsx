@@ -14,7 +14,7 @@ import { ThemeToggle } from './ThemeToggle'
  */
 export function Header({ email }: { email: string | null }) {
   return (
-    <header className="app-header sticky top-0 z-30 border-b border-border bg-panel/85 backdrop-blur-md">
+    <header className="app-header sticky top-0 z-30 bg-panel/85 backdrop-blur-md">
       <div className="max-w-[95vw] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         <Link
           href="/"

@@ -35,7 +35,7 @@ function FitScoreRow({
           <span className="min-w-0 leading-snug text-muted-foreground">{hint}</span>
           <span className={`shrink-0 font-medium ${t.text}`}>{label}</span>
         </div>
-        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-panel">
           <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${score}%` }} />
         </div>
       </div>
@@ -64,7 +64,7 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
     return (
       <div className="surface p-5">
         <h3 className="font-display text-sm font-semibold text-foreground mb-3">Demand — trade area</h3>
-        <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+        <div className="rounded-xl bg-field/60 px-4 py-6 text-center">
           <div className="text-sm text-muted-foreground">Demographics not available yet.</div>
           <div className="text-xs text-muted-foreground mt-1">
             They’re fetched automatically once the property has a mappable address.
@@ -90,7 +90,7 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
         </span>
       </div>
 
-      <div className="mb-4 border-y border-border">
+      <div className="mb-5 rounded-lg bg-field px-4">
         <FitScoreRow
           title="Badminton demand"
           score={d.badmintonFit.score}
@@ -137,7 +137,7 @@ export function DemographicsPanel({ demographics }: { demographics: Demographics
       </div>
 
       {isDrive && (
-        <p className="mt-4 border-t border-border pt-3 text-xs leading-snug text-muted-foreground">
+        <p className="mt-5 text-xs leading-snug text-muted-foreground">
           Figures cover the area reachable within a {driveMinutes}-minute drive — it follows roads and
           water, not a straight-line radius.
         </p>

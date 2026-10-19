@@ -215,12 +215,12 @@ export function ListingInput({ onExtracted, headerAction }: Props) {
           </span>
         </div>
         {status && !warning && (
-          <p className="text-sm text-good bg-good/10 ring-1 ring-inset ring-good/25 rounded-md px-3 py-2">
+          <p className="text-sm text-good bg-good/10 rounded-md px-3 py-2">
             {status}
           </p>
         )}
         {warning && (
-          <p className="text-sm text-caution bg-caution/10 ring-1 ring-inset ring-caution/25 rounded-md px-3 py-2">
+          <p className="text-sm text-caution bg-caution/10 rounded-md px-3 py-2">
             {warning}
           </p>
         )}

@@ -24,7 +24,7 @@ const COURT_GREEN = '#1f6a4e'
 const onCourtPrimary =
   'bg-line text-[#15201b] shadow-none hover:bg-line/85 focus-visible:ring-line/50'
 const onCourtGhost =
-  'border-white/35 bg-transparent text-white hover:bg-white/10 hover:text-white dark:border-white/35 dark:bg-transparent dark:hover:bg-white/10'
+  'bg-white/12 text-white hover:bg-white/15 hover:text-white dark:bg-white/12 dark:hover:bg-white/15'
 
 export function Splash({ onTry }: { onTry: () => void }) {
   return (
@@ -144,7 +144,7 @@ function Scorecard() {
           <p className="text-sm text-muted-foreground">Sample listing</p>
           <p className="mt-0.5 font-medium">8,000 sf warehouse, Queens NY</p>
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-good/10 py-1 pr-2.5 pl-2 text-xs font-medium text-good ring-1 ring-good/25 ring-inset">
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-good/10 py-1 pr-2.5 pl-2 text-xs font-medium text-good">
           <span aria-hidden className="size-1.5 rounded-full bg-good" />
           Strong candidate
         </span>
@@ -158,13 +158,13 @@ function Scorecard() {
         </span>
       </div>
 
-      <dl className="mt-6 grid grid-cols-3 border-y py-4">
+      <dl className="mt-6 grid grid-cols-3 gap-2">
         {[
           ['Net income', '$422K'],
           ['Payback', '2.4 yr'],
           ['Rent burden', '30%'],
-        ].map(([k, v], i) => (
-          <div key={k} className={i > 0 ? 'border-l pl-4' : 'pr-4'}>
+        ].map(([k, v]) => (
+          <div key={k} className="rounded-lg bg-field px-3 py-2.5">
             <dt className="text-xs text-muted-foreground">{k}</dt>
             <dd className="font-display mt-1 text-xl font-semibold tabular-nums">{v}</dd>
           </div>
@@ -204,7 +204,7 @@ function Steps() {
           <ListingSnippet />
         </Step>
         <Step n={2} title="See it measured" body="The building is laid out to scale with real court and buffer dimensions, leaving room for a lobby, lounge and restrooms.">
-          <div className="rounded-lg border bg-background p-2">
+          <div className="rounded-lg bg-panel p-2">
             <FloorPlanFigure className="w-full" />
           </div>
         </Step>
@@ -230,10 +230,9 @@ function Step({
   return (
     <li className="flex flex-col">
       <div className="flex items-center gap-3">
-        <span className="font-display flex size-8 items-center justify-center rounded-full border-2 border-foreground text-sm font-bold tabular-nums">
+        <span className="font-display flex size-8 items-center justify-center rounded-full bg-foreground text-sm font-bold tabular-nums text-background">
           {n}
         </span>
-        <span aria-hidden className="h-px flex-1 bg-border" />
       </div>
       <h3 className="font-display mt-5 text-lg font-semibold">{title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
@@ -246,7 +245,7 @@ function Step({
 function ListingSnippet() {
   const mark = 'rounded-[3px] bg-line/70 px-0.5 text-[#15201b] dark:bg-line/80'
   return (
-    <div className="h-full rounded-lg border bg-panel p-4 text-sm leading-relaxed">
+    <div className="h-full rounded-lg bg-panel p-4 text-sm leading-relaxed">
       <p className="font-medium">Industrial / flex for lease</p>
       <p className="mt-2 text-muted-foreground">
         Freestanding <mark className={mark}>8,000 SF</mark> warehouse with{' '}
@@ -266,14 +265,14 @@ function MiniVerdict() {
     ['Demand score', '86 of 100'],
   ]
   return (
-    <div className="h-full rounded-lg border bg-panel p-4 text-sm">
+    <div className="h-full rounded-lg bg-panel p-4 text-sm">
       <div className="flex items-center gap-2 font-medium text-good">
         <span aria-hidden className="size-2 rounded-full bg-good" />
         Strong candidate
       </div>
-      <dl className="mt-3 divide-y">
+      <dl className="mt-3 space-y-1">
         {rows.map(([k, v]) => (
-          <div key={k} className="flex items-center justify-between py-2">
+          <div key={k} className="flex items-center justify-between rounded-md px-2 py-1.5 odd:bg-field">
             <dt className="text-muted-foreground">{k}</dt>
             <dd className="font-medium tabular-nums">{v}</dd>
           </div>
@@ -288,7 +287,7 @@ function MiniVerdict() {
 function Closing({ onTry }: { onTry: () => void }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-6">
-      <div className="flex flex-col items-start justify-between gap-6 rounded-xl bg-[#15201b] px-8 py-10 text-white ring-1 ring-border md:flex-row dark:bg-panel-2 md:items-center">
+      <div className="flex flex-col items-start justify-between gap-6 rounded-xl bg-[#15201b] px-8 py-10 text-white md:flex-row dark:bg-panel-2 md:items-center">
         <div>
           <h2 className="font-display text-2xl font-bold sm:text-3xl">
             Start with a pipeline that’s already scored

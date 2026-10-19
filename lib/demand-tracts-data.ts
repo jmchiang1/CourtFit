@@ -34,6 +34,22 @@ export const ETHNICITY_OPTIONS: { label: HeatEthnicity; index: number }[] = [
   { label: 'South Asian', index: TRACT.southAsian },
 ]
 
+/**
+ * Tuple indices to sum for a multi-select of pools. White/Black/Hispanic/Asian
+ * are mutually exclusive (ACS B03002), but East and South Asian are subsets of
+ * Asian — so they drop out when Asian is picked, to avoid double-counting.
+ * Nothing selected (or Total) means the whole population.
+ */
+export function ethnicityIndices(selected: readonly HeatEthnicity[]): number[] {
+  if (selected.length === 0 || selected.includes('Total')) return [TRACT.total]
+  const hasAsian = selected.includes('Asian')
+  return ETHNICITY_OPTIONS.filter(
+    (o) =>
+      selected.includes(o.label) &&
+      !(hasAsian && (o.label === 'East Asian' || o.label === 'South Asian')),
+  ).map((o) => o.index)
+}
+
 /** Median household income is top-coded by the ACS near this value. */
 export const INCOME_MAX = 250_000
 

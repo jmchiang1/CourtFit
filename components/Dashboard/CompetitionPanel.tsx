@@ -29,7 +29,7 @@ function WhitespaceRow({ demandFit, ws }: { demandFit: number; ws: WhitespaceRes
           </span>
           <span className={`shrink-0 font-medium ${t.text}`}>{ws.label}</span>
         </div>
-        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-panel">
           <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${ws.score}%` }} />
         </div>
       </div>
@@ -63,7 +63,7 @@ export function CompetitionPanel({
     return (
       <div className="competition-card surface p-5">
         <h3 className="font-display text-sm font-semibold text-foreground mb-3">Competition &amp; whitespace</h3>
-        <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+        <div className="rounded-xl bg-field/60 px-4 py-6 text-center">
           <div className="text-sm text-muted-foreground">Not available yet.</div>
           <div className="text-xs text-muted-foreground mt-1">
             Needs a mappable address and its trade-area demographics.
@@ -85,12 +85,12 @@ export function CompetitionPanel({
         </span>
       </div>
 
-      <div className="mb-4 border-y border-border">
+      <div className="mb-5 rounded-lg bg-field px-4">
         <WhitespaceRow demandFit={demographics!.badmintonFit.score} ws={w} />
       </div>
 
       {c.nearby.length > 0 ? (
-        <div className="divide-y divide-border">
+        <div>
           <div className="flex items-center justify-between gap-3 pb-1.5 text-xs">
             <span className="font-medium text-foreground">Nearby competitors</span>
             {c.nearest && (
@@ -99,12 +99,17 @@ export function CompetitionPanel({
               </span>
             )}
           </div>
-          {c.nearby.slice(0, 4).map((n) => (
-            <div key={n.name} className="flex items-center justify-between gap-2 py-1.5 text-xs">
-              <span className="truncate text-foreground/80">{n.name}</span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{n.miles.toFixed(1)} mi</span>
-            </div>
-          ))}
+          <div className="-mx-2">
+            {c.nearby.slice(0, 4).map((n) => (
+              <div
+                key={n.name}
+                className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-xs odd:bg-muted/60"
+              >
+                <span className="truncate text-foreground/80">{n.name}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">{n.miles.toFixed(1)} mi</span>
+              </div>
+            ))}
+          </div>
           {c.nearby.length > 4 && (
             <div className="pt-1.5 text-xs text-muted-foreground">+{c.nearby.length - 4} more within {c.radiusMiles} mi</div>
           )}

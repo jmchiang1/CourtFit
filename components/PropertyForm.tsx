@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { ExtractedListing } from '@/types/analysis'
+import { ESTIMATED_RENT_PER_SQFT_YR } from '@/lib/calculator'
 
 interface Props {
   value: ExtractedListing
@@ -63,13 +64,13 @@ export function PropertyForm({ value, onChange, headerAction }: Props) {
         <Field label="Office sq ft" type="number" value={value.officeSqft} onChange={v => set('officeSqft', v as number | null)} />
         <Field label="Clear height (ft)" type="number" value={value.clearHeight} onChange={v => set('clearHeight', v as number | null)} />
         <Field
-          label="Rent ($/sf/yr)"
+          label="Base rent ($/sf/yr)"
           type="number"
           step="0.01"
           value={value.rentPerSqftYr}
           onChange={(v) => set('rentPerSqftYr', v as number | null)}
-          placeholder="24"
-          hint="Using $24/sf/yr as estimate"
+          placeholder={String(ESTIMATED_RENT_PER_SQFT_YR)}
+          hint={`Using $${ESTIMATED_RENT_PER_SQFT_YR}/sf/yr as an estimate (NNN is added from assumptions)`}
         />
         <Field label="Loading" value={value.loading} onChange={v => set('loading', v as string | null)} />
         <div className="sm:col-span-2">

@@ -433,7 +433,7 @@ function PanelCell({
         onClick={onHide}
         aria-label={`Hide ${label}`}
         title={`Hide "${label}" on all properties`}
-        className="absolute right-2 top-2 z-10 hidden size-7 items-center justify-center rounded-md bg-panel text-muted-foreground shadow-xs ring-1 ring-border transition-colors group-hover/panel:flex hover:bg-muted hover:text-foreground"
+        className="absolute right-2 top-2 z-10 hidden size-7 items-center justify-center rounded-md bg-field text-muted-foreground transition-colors group-hover/panel:flex hover:bg-field-hover hover:text-foreground"
       >
         <EyeOff className="size-3.5" />
       </button>

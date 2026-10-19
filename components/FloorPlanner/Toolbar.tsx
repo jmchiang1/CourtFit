@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { usePlanner } from "@/lib/floor-planner/store";
 import { MIN_BUILDING_FT } from "@/lib/floor-planner/config";
 
+/** Borderless controls: a keyboard-focus ring is the only outline. */
+const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 interface Props {
   zoom: number;
   setZoom: (z: number) => void;
@@ -18,20 +21,25 @@ function Seg({
   onClick,
   children,
   title,
+  solo,
 }: {
   active?: boolean;
   onClick: () => void;
   children: React.ReactNode;
   title?: string;
+  /** Standalone toggle (not inside a segmented group) — gets its own field fill. */
+  solo?: boolean;
 }) {
   return (
     <button
       title={title}
       onClick={onClick}
-      className={`h-7 rounded-md px-2.5 text-[12px] font-medium transition ${
+      className={`h-7 rounded-md px-2.5 text-[12px] font-medium transition ${FOCUS} ${
         active
-          ? "bg-primary text-primary-foreground shadow-xs"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          ? "bg-primary text-primary-foreground"
+          : solo
+            ? "bg-field text-muted-foreground hover:bg-field-hover hover:text-foreground"
+            : "text-muted-foreground hover:bg-field-hover hover:text-foreground"
       }`}
     >
       {children}
@@ -89,7 +97,7 @@ function DimensionInput({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      className="h-7 w-16 rounded-md border border-input bg-background px-1.5 text-center text-[12px] tabular-nums text-foreground outline-none focus:border-ring"
+      className={`h-7 w-16 rounded-md bg-field px-1.5 text-center text-[12px] tabular-nums text-foreground ${FOCUS}`}
       title={title}
     />
   );
@@ -111,7 +119,7 @@ function Btn({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className="h-7 rounded-md border border-border px-2.5 text-[12px] font-medium text-foreground shadow-xs transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+      className={`h-7 rounded-md bg-field px-2.5 text-[12px] font-medium text-foreground transition hover:bg-field-hover disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS}`}
     >
       {children}
     </button>
@@ -138,15 +146,15 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
   } = usePlanner();
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-panel px-3 py-2">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-panel px-3 py-2">
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         spellCheck={false}
-        className="h-7 w-44 rounded-md border border-input bg-background px-2 text-[13px] font-medium text-foreground outline-none focus:border-ring"
+        className={`h-7 w-44 rounded-md bg-field px-2 text-[13px] font-medium text-foreground ${FOCUS}`}
       />
 
-      <div className="h-5 w-px bg-border" />
+      <div aria-hidden className="w-2" />
 
       {/* building envelope */}
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -165,7 +173,7 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
         <span>ft</span>
       </div>
 
-      <div className="h-5 w-px bg-border" />
+      <div aria-hidden className="w-2" />
 
       <div className="flex rounded-lg bg-muted p-0.5">
         <Seg
@@ -184,14 +192,14 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
         </Seg>
       </div>
 
-      <Seg active={snapOn} onClick={toggleSnap} title="Snap to 2 ft grid">
+      <Seg solo active={snapOn} onClick={toggleSnap} title="Snap to 2 ft grid">
         Snap 2′
       </Seg>
-      <Seg active={showPlayLines} onClick={toggleShowPlayLines} title="Draw inner court lines">
+      <Seg solo active={showPlayLines} onClick={toggleShowPlayLines} title="Draw inner court lines">
         Court lines
       </Seg>
 
-      <div className="h-5 w-px bg-border" />
+      <div aria-hidden className="w-2" />
 
       <div className="flex items-center gap-1">
         <Btn onClick={() => setZoom(Math.max(0.3, +(zoom - 0.15).toFixed(2)))} title="Zoom out">
@@ -208,7 +216,7 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
         </Btn>
       </div>
 
-      <div className="h-5 w-px bg-border" />
+      <div aria-hidden className="w-2" />
 
       <div className="flex items-center gap-1">
         <Btn onClick={undo} disabled={past.length === 0} title="Undo (⌘Z)">
@@ -223,7 +231,7 @@ export default function Toolbar({ zoom, setZoom, onFit, onSave, onClose, saving 
         <button
           onClick={onSave}
           disabled={saving || !dirty}
-          className="h-7 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground shadow-xs transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40"
+          className={`h-7 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS}`}
         >
           {saving ? "Saving…" : dirty ? "Save" : "Saved"}
         </button>

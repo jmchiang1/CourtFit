@@ -97,7 +97,14 @@ export function NewFloorPlanDialog({
             <Label htmlFor="plan-property">Size from a listing</Label>
             <Select value={propertyId} onValueChange={(v) => setPropertyId(v ?? BLANK)}>
               <SelectTrigger id="plan-property" className="w-full">
-                <SelectValue />
+                {/* Base UI shows the raw value unless told how to label it. */}
+                <SelectValue>
+                  {(v: string) => {
+                    if (v === BLANK) return 'Blank building (150′ × 100′)'
+                    const p = properties.find((x) => x.id === v)
+                    return p ? p.label || p.address || 'Untitled property' : v
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={BLANK}>Blank building (150′ × 100′)</SelectItem>

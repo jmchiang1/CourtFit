@@ -1,9 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
-import { Button } from '@/components/ui/button'
 import { Plus, List, Map as MapIcon, LayoutDashboard } from 'lucide-react'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { FloatingNav, type NavItem } from '@/components/FloatingNav'
 import { DashboardTable } from '@/components/DashboardTable'
 import { PropertiesMap } from '@/components/PropertiesMap'
 import { EditorSheet } from '@/components/EditorSheet'
@@ -26,6 +25,12 @@ import type { PropertyRow, ReferenceFacilityRow } from '@/lib/supabase/types'
 
 type EditorState = { row?: PropertyRow; importedText?: string } | null
 type View = 'list' | 'map' | 'plans'
+
+const NAV_ITEMS: NavItem<View>[] = [
+  { value: 'list', label: 'List', icon: List },
+  { value: 'map', label: 'Map', icon: MapIcon },
+  { value: 'plans', label: 'Floor plans', icon: LayoutDashboard },
+]
 
 /**
  * The signed-in dashboard. In `demo` mode (a visitor who chose "Try without an
@@ -214,8 +219,10 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
   }
 
   return (
-    <main className="max-w-[95vw] mx-auto w-full px-4 sm:px-6 py-4">
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+    // Extra bottom padding keeps the floating nav from covering the last row.
+    <main className="max-w-[95vw] mx-auto w-full px-4 sm:px-6 pt-4 pb-28">
+      {/* The primary action (Add property / New floor plan) lives in the bottom nav. */}
+      <div className="mb-4">
         <div>
           <h1 className="font-display text-2xl font-semibold text-foreground">
             {view === 'plans' ? 'Floor plans' : 'Properties'}
@@ -227,36 +234,6 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
                 ? 'All saved locations on the map. Click a pin for details.'
                 : 'All saved analyses. Click a row to view the verdict.'}
           </p> */}
-        </div>
-        <div className="flex items-center gap-2">
-          <Tabs value={view} onValueChange={(v) => setView(v as View)}>
-            <TabsList>
-              <TabsTrigger value="list" className="gap-1.5">
-                <List className="size-4" />
-                List
-              </TabsTrigger>
-              <TabsTrigger value="map" className="gap-1.5">
-                <MapIcon className="size-4" />
-                Map
-              </TabsTrigger>
-              <TabsTrigger value="plans" className="gap-1.5">
-                <LayoutDashboard className="size-4" />
-                Floor plans
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          {/* Same fixed width for both so the header doesn't shift between views. */}
-          {view === 'plans' ? (
-            <Button onClick={() => setCreatingPlan(true)} className="w-36 gap-1.5">
-              <Plus className="size-4" />
-              New floor plan
-            </Button>
-          ) : (
-            <Button onClick={() => setEditor({ row: undefined })} className="w-36 gap-1.5">
-              <Plus className="size-4" />
-              Add property
-            </Button>
-          )}
         </div>
       </div>
 
@@ -314,6 +291,17 @@ export function AppHome({ demo = false }: { demo?: boolean }) {
           <BookmarkletHelper />
         </div>
       )}
+
+      <FloatingNav
+        items={NAV_ITEMS}
+        value={view}
+        onChange={setView}
+        action={
+          view === 'plans'
+            ? { label: 'New floor plan', icon: Plus, onClick: () => setCreatingPlan(true) }
+            : { label: 'Add property', icon: Plus, onClick: () => setEditor({ row: undefined }) }
+        }
+      />
     </main>
   )
 }

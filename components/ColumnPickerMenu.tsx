@@ -56,7 +56,7 @@ export function ColumnPickerMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size={size} className="gap-1.5">
+          <Button variant="outline" size={size} className="gap-1.5 font-normal shadow-none">
             <Columns3 className={size === 'sm' ? 'size-3.5' : 'size-4'} />
             Columns
             {hiddenCount > 0 && (
